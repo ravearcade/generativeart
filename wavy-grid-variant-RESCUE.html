@@ -1,0 +1,536 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Wavy Grid – RESCUE Build (Smart Pairing + New Palettes/Fill Modes)</title>
+<style>
+  :root { --panel: #0f1222; --ink:#e8f1ff; --muted:#8aa1c4; }
+  html,body { height:100%; margin:0; background:#0b0e1a; color:var(--ink); font-family: ui-sans-serif,system-ui,Segoe UI,Arial; }
+  .wrap { display:grid; grid-template-columns: 1fr 360px; grid-template-rows: 100vh; }
+  #stage { background:#000; position:relative; }
+  #ui { background:var(--panel); padding:16px; overflow:auto; border-left:1px solid #17213a; }
+  h2 { margin:0 0 6px; font-weight:700; font-size:16px; letter-spacing:.4px; }
+  .module { border:1px solid #1b2a4a; border-radius:12px; padding:12px; margin-bottom:12px; background:#0d1327; box-shadow: 0 0 0 1px rgba(120,170,255,.06) inset; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; }
+  .row label { font-size:12px; color:var(--muted); }
+  select, input[type="number"], input[type="text"] { width: 160px; background:#0b1531; color:var(--ink); border:1px solid #22345c; border-radius:8px; padding:6px 8px; }
+  input[type="range"] { width:160px; }
+  button { background:#14234a; color:var(--ink); border:1px solid #28458b; border-radius:10px; padding:8px 10px; cursor:pointer; }
+  small { color:#7ea1ff; opacity:.8; }
+  .footer { font-size:11px; color:#88a; opacity:.75; text-align:center; padding-top:6px; }
+  canvas { display:block; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="stage"><canvas id="c"></canvas></div>
+  <div id="ui">
+    <div class="module">
+      <h2>Grid</h2>
+      <div class="row"><label>Cell Size</label><input id="cell" type="range" min="8" max="120" step="1" value="48"></div>
+      <div class="row"><label>Stroke Width</label><input id="strokeW" type="range" min="0" max="8" step="0.1" value="1.2"></div>
+      <div class="row"><label><input id="drawLines" type="checkbox" checked> Draw Lines</label></div>
+    </div>
+
+    <div class="module">
+      <h2>Color</h2>
+      <div class="row"><label>Palette</label><select id="palette"></select></div>
+      <div class="row"><label><input id="lockPalette" type="checkbox"> Lock Palette</label></div>
+      <div class="row"><label><input id="smartPair" type="checkbox"> Smart Pairing (palette-aware)</label></div>
+      <div class="row"><label>Pairing Mode</label>
+        <select id="pairingMode">
+          <option value="weighted" selected>Weighted</option>
+          <option value="strict">Strict</option>
+          <option value="explore">Explore</option>
+        </select>
+      </div>
+      <div class="row"><label>Fill Mode</label><select id="fillMode"></select></div>
+      <div class="row"><label>Opacity</label><input id="opacity" type="range" min="0" max="1" step="0.01" value="0.95"></div>
+      <div class="row"><label><input id="hueCycle" type="checkbox"> Hue Cycle</label></div>
+    </div>
+
+    <div class="module">
+      <h2>Gradient & Noise</h2>
+      <div class="row"><label>Gradient Type</label>
+        <select id="gradType">
+          <option value="linear">linear</option>
+          <option value="radial">radial</option>
+          <option value="angular">angular</option>
+        </select>
+      </div>
+      <div class="row"><label>Angle</label><input id="angle" type="range" min="0" max="180" step="1" value="45"></div>
+      <div class="row"><label>Spread</label><input id="spread" type="range" min="0" max="3" step="0.01" value="1.2"></div>
+      <div class="row"><label>Noise Scale</label><input id="noiseScale" type="range" min="0.005" max="0.08" step="0.001" value="0.02"></div>
+      <div class="row"><label>Noise Speed</label><input id="noiseSpeed" type="range" min="0" max="2" step="0.01" value="0.2"></div>
+    </div>
+
+    <div class="module">
+      <h2>Animation</h2>
+      <div class="row"><label><input id="animate" type="checkbox" checked> Animate</label></div>
+      <div class="row"><label>Anim Speed</label><input id="animSpeed" type="range" min="0" max="3" step="0.01" value="1"></div>
+      <div class="row"><button id="randomize">Master Randomize (A/0)</button></div>
+      <div class="row"><button id="randColor">Randomize Color (3)</button> <small>respects Smart Pairing</small></div>
+    </div>
+
+    <div class="footer">RESCUE build — clean core to recover visuals. ⌘/Ctrl+R reflow if resized.</div>
+  </div>
+</div>
+
+<script>
+// ---------- Utils
+const dpr = Math.max(1, Math.min(2, devicePixelRatio || 1));
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function fract(x){ return x - Math.floor(x); }
+function projectLinear(nx,ny,angle,spread){ const c=Math.cos(angle), s=Math.sin(angle); return (nx*c + ny*s)*spread; }
+function resize(){ const box = document.getElementById('stage').getBoundingClientRect(); canvas.width = Math.round(box.width*dpr); canvas.height = Math.round(box.height*dpr); }
+window.addEventListener('resize', ()=>{ resize(); draw(true); });
+
+// ---------- Palettes
+const PRESET_PALETTES = {
+  "Lunar Glow": ["#f4f1de","#e07a5f","#3d405b","#81b29a","#f2cc8f"],
+  "Coral Reef": ["#ff6f61","#ffb347","#6ec5e9","#005377","#f5f5f5"],
+  "Midnight Garden": ["#0d1b2a","#1b263b","#415a77","#778da9","#e0e1dd"],
+  "Golden Hour": ["#ffdd00","#ff8800","#ff3c00","#8c1c13","#2e1a1f"],
+  "Arctic Frost": ["#caf0f8","#90e0ef","#00b4d8","#0077b6","#03045e"],
+  "Rose Quartz": ["#f9dbbd","#fca3cc","#f15bb5","#9d4edd","#4a0e4e"],
+  "Harvest Fields": ["#f6bd60","#f7ede2","#f5cac3","#84a59d","#f28482"],
+  "Electric Storm": ["#2b2d42","#8d99ae","#edf2f4","#ef233c","#d90429"],
+  "Deep Space": ["#0b0033","#370031","#832161","#da4167","#f0eff4"],
+  "Citrus Pop": ["#fce762","#f68e5f","#f76c5e","#a23e48","#0b3954"],
+  "Twilight Mist": ["#f2e9e4","#c9ada7","#9a8c98","#4a4e69","#22223b"],
+  "Festival Lights": ["#ff1654","#ff9f1c","#2ec4b6","#00a896","#e0fbfc"],
+  "Earth & Clay": ["#7f5539","#9c6644","#ddb892","#e6ccb2","#ede0d4"],
+  "Peacock Feathers": ["#051923","#003554","#006494","#0582ca","#00a6fb"],
+  "Molten Lava": ["#590004","#800e13","#ad2831","#d8572a","#ffb627"],
+  "Vintage Sepia": ["#432818","#99582a","#bb9457","#ffe6a7","#e9d8a6"],
+  "Aurora Twilight": ["#03045e","#023e8a","#0077b6","#00b4d8","#90e0ef"],
+  "Berry Crush": ["#590d22","#800f2f","#a4133c","#ff4d6d","#ffccd5"],
+  "Mystic Lagoon": ["#14213d","#1d3557","#457b9d","#a8dadc","#f1faee"],
+  "Solar Flare": ["#ff5400","#ff6d00","#ff8500","#ff9100","#ffb300"],
+
+  // A couple of neutral fallbacks
+  "Mono Ink": ["#0d1b2a","#1b263b","#415a77","#778da9","#e0e1dd"],
+  "Pastel Dream": ["#f6e7f7","#fcd5ce","#f8edeb","#d8e2dc","#cdeac0"]
+};
+
+// Build palette ramp
+function makeRamp(hexList){
+  const hsl = hexList.map(hex=>{
+    const n = hex.replace('#','');
+    const r = parseInt(n.slice(0,2),16)/255,
+          g = parseInt(n.slice(2,4),16)/255,
+          b = parseInt(n.slice(4,6),16)/255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h,s,l = (max+min)/2;
+    if(max===min){ h=0; s=0; }
+    else{
+      const d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d + (g<b?6:0); break;
+        case g: h=(b-r)/d + 2; break;
+        case b: h=(r-g)/d + 4; break;
+      }
+      h/=6;
+    }
+    return {h,s,l};
+  });
+  return {
+    hsl,
+    get(t, hueShift=0, mul=1){
+      const n=hsl.length;
+      if(n===0) return 'rgb(255,255,255)';
+      const f = clamp(t,0,1)*(n-1);
+      const i = Math.floor(f), j = Math.min(n-1, i+1);
+      const k = f - i;
+      const a=hsl[i], b=hsl[j];
+      const h = fract((a.h + (b.h-a.h)*k + hueShift));
+      const s = clamp(a.s + (b.s-a.s)*k, 0, 1);
+      const l = clamp((a.l + (b.l-a.l)*k) * mul, 0, 1);
+      function hslToRgb(h,s,l){
+        if(s===0){ const v = Math.round(l*255); return `rgb(${v},${v},${v})`; }
+        const q = l < .5 ? l*(1+s) : l+s - l*s;
+        const p = 2*l - q;
+        function hue2rgb(p,q,t){ if(t<0) t+=1; if(t>1) t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; }
+        const r = hue2rgb(p,q,h+1/3), g = hue2rgb(p,q,h), b = hue2rgb(p,q,h-1/3);
+        return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+      }
+      return hslToRgb(h,s,l);
+    }
+  };
+}
+
+// ---------- Fill Modes
+const ColorModes = [
+  'Solid','Alternating','Gradient – Linear','Gradient – Radial',
+  'Gradient Sweep','Aurora Bands','Sand Dunes','Crystal Facets','Ripple Rings',
+  'Stained Glass','Fractal Flames','Weave Pattern','Marble Veins','Frost Crystals',
+  'Solar Burst','Peacock Fan','Nebula Clouds','Pixel Mosaic','Topographic Lines',
+  'Checker Glow','Diamond Waves','Ink Bleed','Twilight Horizon','Festival Confetti'
+];
+
+// Palette-aware pairs
+const PALETTE_TO_FILL = {
+  "Lunar Glow":         [["Twilight Horizon",3],["Marble Veins",2],["Topographic Lines",1]],
+  "Coral Reef":         [["Ripple Rings",3],["Aurora Bands",2],["Stained Glass",1]],
+  "Midnight Garden":    [["Nebula Clouds",3],["Frost Crystals",2],["Weave Pattern",1]],
+  "Golden Hour":        [["Twilight Horizon",3],["Sand Dunes",2],["Solar Burst",1]],
+  "Arctic Frost":       [["Frost Crystals",3],["Aurora Bands",2],["Topographic Lines",1]],
+  "Rose Quartz":        [["Ink Bleed",3],["Stained Glass",2],["Gradient Sweep",1]],
+  "Harvest Fields":     [["Sand Dunes",3],["Topographic Lines",2],["Marble Veins",1]],
+  "Electric Storm":     [["Solar Burst",3],["Crystal Facets",2],["Diamond Waves",1]],
+  "Deep Space":         [["Nebula Clouds",3],["Solar Burst",2],["Crystal Facets",1]],
+  "Citrus Pop":         [["Festival Confetti",3],["Pixel Mosaic",2],["Gradient Sweep",1]],
+  "Twilight Mist":      [["Gradient Sweep",3],["Ink Bleed",2],["Checker Glow",1]],
+  "Festival Lights":    [["Festival Confetti",3],["Pixel Mosaic",2],["Aurora Bands",1]],
+  "Earth & Clay":       [["Marble Veins",3],["Sand Dunes",2],["Topographic Lines",1]],
+  "Peacock Feathers":   [["Peacock Fan",3],["Diamond Waves",2],["Stained Glass",1]],
+  "Molten Lava":        [["Solar Burst",3],["Ripple Rings",2],["Crystal Facets",1]],
+  "Vintage Sepia":      [["Marble Veins",3],["Topographic Lines",2],["Checker Glow",1]],
+  "Aurora Twilight":    [["Aurora Bands",3],["Solar Burst",2],["Ripple Rings",1]],
+  "Berry Crush":        [["Ink Bleed",3],["Stained Glass",2],["Gradient Sweep",1]],
+  "Mystic Lagoon":      [["Nebula Clouds",3],["Ripple Rings",2],["Peacock Fan",1]],
+  "Solar Flare":        [["Solar Burst",3],["Diamond Waves",2],["Pixel Mosaic",1]]
+};
+
+function pickWeighted(pairs){
+  const total = pairs.reduce((s,p)=>s+(p[1]||1),0);
+  let r=Math.random()*total, acc=0;
+  for(const [name,w] of pairs){ acc+=(w||1); if(r<=acc) return name; }
+  return pairs[0][0];
+}
+function pickPairedFill(paletteKey){
+  const mode = document.getElementById('pairingMode').value;
+  const pairs = PALETTE_TO_FILL[paletteKey];
+  if(!pairs) return null;
+  if(mode==='strict') return pairs[0][0];
+  if(mode==='weighted') return pickWeighted(pairs);
+  // explore: 50/50
+  return (Math.random()<0.5) ? pickWeighted(pairs) : randomChoice(ColorModes);
+}
+
+// ---------- State
+const ui = {};
+['cell','strokeW','drawLines','palette','lockPalette','smartPair','pairingMode','fillMode','opacity','hueCycle','gradType','angle','spread','noiseScale','noiseSpeed','animate','animSpeed','randomize','randColor']
+.forEach(id=> ui[id] = document.getElementById(id));
+
+Object.keys(PRESET_PALETTES).forEach(k=>{
+  ui.palette.insertAdjacentHTML('beforeend', `<option value="${k}">${k}</option>`);
+});
+ColorModes.forEach(k=>{
+  ui.fillMode.insertAdjacentHTML('beforeend', `<option value="${k}">${k}</option>`);
+});
+
+const state = {
+  ramp: makeRamp(PRESET_PALETTES[ui.palette.value] || PRESET_PALETTES['Lunar Glow']),
+  time: 0
+};
+
+function setPalette(name){ state.ramp = makeRamp(PRESET_PALETTES[name]); }
+ui.palette.addEventListener('input', ()=>{ setPalette(ui.palette.value); draw(); });
+
+// ---------- Noise (simple hash-based)
+function hash(x,y){ return Math.sin(x*127.1 + y*311.7)*43758.5453; }
+function noise2(x,y){ const iX=Math.floor(x), iY=Math.floor(y); const fX=fract(x), fY=fract(y);
+  function fade(t){ return t*t*(3-2*t); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  const a=fract(hash(iX,   iY   )), b=fract(hash(iX+1, iY));
+  const c=fract(hash(iX,   iY+1 )), d=fract(hash(iX+1, iY+1));
+  const u=fade(fX), v=fade(fY);
+  return lerp(lerp(a,b,u), lerp(c,d,u), v);
+}
+
+// ---------- Color sampler
+function colorForCell(nx,ny,t){
+  const mode = ui.fillMode.value;
+  const opacity = parseFloat(ui.opacity.value);
+  ctx.globalAlpha = opacity;
+
+  const anim = parseFloat(ui.animSpeed.value) * (ui.animate.checked ? 1 : 0);
+  const hueShift = ui.hueCycle.checked ? (0.15*Math.sin(t*anim*0.9)) : 0;
+  const breathMul = 1;
+
+  let color = 'rgb(255,255,255)';
+  if(mode==='Solid'){
+    color = state.ramp.get(0.5, hueShift, breathMul);
+  }
+  else if(mode==='Alternating'){
+    const v = (Math.floor(nx*20) + Math.floor(ny*20)) % 2 ? 0.25 : 0.75;
+    color = state.ramp.get(v, hueShift, breathMul);
+  }
+  else if(mode.startsWith('Gradient')){
+    const type = ui.gradType.value;
+    const s = parseFloat(ui.spread.value);
+    const ang = (parseFloat(ui.angle.value) * Math.PI/180);
+    if(type==='linear'){
+      const p = projectLinear(nx-0.5, ny-0.5, ang, s);
+      const tv = clamp(p*0.5 + 0.5, 0, 1);
+      color = state.ramp.get(tv, hueShift, breathMul);
+    } else if(type==='radial'){
+      const dx=nx-0.5, dy=ny-0.5; const d=Math.sqrt(dx*dx+dy*dy)*s*1.2;
+      color = state.ramp.get(clamp(d,0,1), hueShift, breathMul);
+    } else { // angular
+      const a = Math.atan2(ny-0.5, nx-0.5);
+      const tv = fract((a/Math.PI*0.5 + 0.5) * s);
+      color = state.ramp.get(tv, hueShift, breathMul);
+    }
+  }
+  // --- New palette-showcase modes
+  else if(mode==='Gradient Sweep'){
+    const ang=(parseFloat(ui.angle.value)*Math.PI/180);
+    const s=parseFloat(ui.spread.value);
+    const p=projectLinear(nx,ny,ang,s) + t*0.1;
+    const v=clamp(p*0.5,0,1);
+    color=state.ramp.get(fract(v),hueShift,breathMul);
+  }
+  else if(mode==='Aurora Bands'){
+    const freq=3.0*parseFloat(ui.spread.value);
+    const wave=Math.sin((ny*freq + noise2(nx*5,ny*5))*Math.PI*2 + t*0.6);
+    const v=0.5+0.5*wave;
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Sand Dunes'){
+    const freq=2.0*parseFloat(ui.spread.value);
+    const height=Math.sin((nx*freq + t*0.2)*Math.PI*2);
+    const v=0.5+0.5*height*0.8;
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Crystal Facets'){
+    const a=Math.atan2(ny-0.5,nx-0.5);
+    const k=Math.floor(((a+Math.PI)/(2*Math.PI))*12*parseFloat(ui.spread.value));
+    const r=Math.hypot(nx-0.5,ny-0.5);
+    const v=fract(k*0.173 + r*3.0);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Ripple Rings'){
+    const cx=0.5+0.1*Math.sin(t*0.3), cy=0.5+0.1*Math.cos(t*0.27);
+    const d=Math.hypot(nx-cx,ny-cy);
+    const bands=10*parseFloat(ui.spread.value);
+    const v=fract(d*bands - t*0.4);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Stained Glass'){
+    const scale=4*parseFloat(ui.spread.value)+2;
+    const gx=nx*scale, gy=ny*scale;
+    const ix=Math.floor(gx), iy=Math.floor(gy);
+    const h=fract(Math.sin(ix*127.1 + iy*311.7)*43758.5453);
+    const v=fract(h + (gx-ix)*0.33 + (gy-iy)*0.67);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Fractal Flames'){
+    const s=parseFloat(ui.noiseScale.value);
+    const a=noise2(nx/(s*0.6)+t*0.2, ny/(s*0.6)+13.7);
+    const b=noise2(nx/(s*0.9)-t*0.15, ny/(s*0.9)+7.1);
+    const v=clamp((a*0.6 + b*0.4),0,1);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Weave Pattern'){
+    const f=8*parseFloat(ui.spread.value);
+    const u=Math.cos(nx*f*2*Math.PI);
+    const v=Math.cos(ny*f*2*Math.PI + Math.sin(nx*2*Math.PI));
+    const w=0.5+0.5*(u*0.6 + v*0.4);
+    color=state.ramp.get(w,hueShift,breathMul);
+  }
+  else if(mode==='Marble Veins'){
+    const f=6*parseFloat(ui.spread.value);
+    const n=noise2(nx*10,ny*10)*2.0;
+    const v=0.5+0.5*Math.sin((nx+ny)*f*2*Math.PI + n*3.0 + t*0.2);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Frost Crystals'){
+    const dx=nx-0.5, dy=ny-0.5;
+    const ang=Math.atan2(dy,dx);
+    const k=8;
+    const star=Math.abs(Math.cos(k*ang))*Math.exp(-3.0*Math.hypot(dx,dy));
+    const v=clamp(star*2.0,0,1);
+    color=state.ramp.get(v,hueShift,breathMul*1.1);
+  }
+  else if(mode==='Solar Burst'){
+    const dx=nx-0.5, dy=ny-0.5;
+    const r=Math.hypot(dx,dy);
+    const theta=Math.atan2(dy,dx);
+    const rays=fract(theta/(2*Math.PI)*24*parseFloat(ui.spread.value) - r*4 + t*0.5);
+    color=state.ramp.get(rays,hueShift,breathMul);
+  }
+  else if(mode==='Peacock Fan'){
+    const dx=nx-0.1, dy=ny-0.7;
+    const theta=Math.atan2(dy,dx);
+    const bands=fract((theta/(2*Math.PI))*12*parseFloat(ui.spread.value));
+    const r=Math.hypot(dx,dy);
+    const v=clamp(0.7*bands + 0.3*(1.0-r),0,1);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Nebula Clouds'){
+    const s=parseFloat(ui.noiseScale.value);
+    const a=noise2(nx/(s*0.8)+t*0.1, ny/(s*0.8)+5.3);
+    const b=noise2(nx/(s*1.2)+11.7, ny/(s*1.2)-t*0.08);
+    const v=clamp((a*a*0.6 + b*0.5),0,1);
+    color=state.ramp.get(v,hueShift+0.05,breathMul);
+  }
+  else if(mode==='Pixel Mosaic'){
+    const scale=10*parseFloat(ui.spread.value);
+    const gx=Math.floor(nx*scale), gy=Math.floor(ny*scale);
+    const h=fract(Math.sin(gx*12.9898 + gy*78.233)*43758.5453);
+    color=state.ramp.get(h,hueShift,breathMul);
+  }
+  else if(mode==='Topographic Lines'){
+    const s=parseFloat(ui.noiseScale.value);
+    const n=noise2(nx/(s*0.8), ny/(s*0.8));
+    const bands=Math.floor(n*12*parseFloat(ui.spread.value));
+    const v=fract(bands*0.137);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Checker Glow'){
+    const base=((Math.floor(nx*20)+Math.floor(ny*20))%2)?0.25:0.75;
+    const glow=0.3*Math.exp(-6*Math.hypot(nx-0.5,ny-0.5));
+    const v=clamp(base*(1.0-glow) + glow,0,1);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Diamond Waves'){
+    const f=6*parseFloat(ui.spread.value);
+    const d=Math.abs(nx-0.5)+Math.abs(ny-0.5);
+    const v=fract(d*f - t*0.3);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Ink Bleed'){
+    const s=parseFloat(ui.noiseScale.value);
+    const n=noise2(nx/(s*1.2), ny/(s*1.2));
+    const v=clamp(Math.pow(n,1.6),0,1);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Twilight Horizon'){
+    const s=parseFloat(ui.spread.value);
+    const v=clamp(0.5 + (ny-0.5)*s + 0.1*Math.sin(nx*6.28 + t*0.2),0,1);
+    color=state.ramp.get(v,hueShift,breathMul);
+  }
+  else if(mode==='Festival Confetti'){
+    const cells=20*parseFloat(ui.spread.value);
+    const gx=Math.floor(nx*cells), gy=Math.floor(ny*cells);
+    const h=fract(Math.sin((gx+gy*57.0)*12.9898)*43758.5453 + t*0.1);
+    color=state.ramp.get(h,hueShift,breathMul);
+  }
+  else {
+    // fallback
+    const seq=[0.1,0.5,0.9];
+    color = state.ramp.get(seq[Math.floor(fract(nx*7+ny*5+t)*seq.length)], hueShift, breathMul);
+  }
+  return color;
+}
+
+// ---------- Drawing
+function draw(force=false){
+  resize();
+  const w = canvas.width/dpr, h = canvas.height/dpr;
+  ctx.clearRect(0,0,w,h);
+  const cell = parseInt(ui.cell.value,10);
+  const stroke = parseFloat(ui.strokeW.value);
+  const drawStroke = ui.drawLines.checked;
+  const t = performance.now()/1000;
+
+  // grid
+  const cols = Math.ceil(w/cell)+1;
+  const rows = Math.ceil(h/cell)+1;
+  for(let r=0;r<rows;r++){
+    for(let cI=0;cI<cols;cI++){
+      const x = cI*cell + ((r%2)? 0: 0);
+      const y = r*cell;
+      const nx = x/w, ny = y/h;
+      ctx.fillStyle = colorForCell(nx,ny,t);
+      ctx.beginPath();
+      const rr = Math.max(0, Math.min(cell*0.38, cell*0.18));
+      // rounded rect
+      const x0 = x, y0 = y, w0 = cell, h0 = cell;
+      const r0 = rr;
+      ctx.moveTo(x0+r0,y0);
+      ctx.arcTo(x0+w0,y0,x0+w0,y0+h0,r0);
+      ctx.arcTo(x0+w0,y0+h0,x0,y0+h0,r0);
+      ctx.arcTo(x0,y0+h0,x0,y0,r0);
+      ctx.arcTo(x0,y0,x0+w0,y0,r0);
+      ctx.closePath();
+      ctx.fill();
+      if(drawStroke){ ctx.lineWidth = stroke; ctx.strokeStyle='rgba(25,35,60,0.7)'; ctx.stroke(); }
+    }
+  }
+}
+
+// ---------- Randomize + Animation
+function randomChoice(arr){ return arr[(Math.random()*arr.length)|0]; }
+
+function randomizeColor(ignorePairing=false){
+  const smart = ui.smartPair && ui.smartPair.checked;
+  const paletteKey = ui.palette.value;
+  let chosenFill = null;
+
+  if(smart && !ignorePairing){
+    chosenFill = pickPairedFill(paletteKey);
+  }
+  if(!chosenFill){
+    chosenFill = randomChoice(ColorModes);
+  }
+  ui.fillMode.value = chosenFill;
+
+  if(!ui.lockPalette.checked){
+    if(!smart){
+      const keys = Object.keys(PRESET_PALETTES);
+      const k = randomChoice(keys);
+      ui.palette.value = k;
+      setPalette(k);
+    } else {
+      setPalette(paletteKey);
+    }
+  } else {
+    setPalette(ui.palette.value);
+  }
+
+  ui.opacity.value = (Math.random()*0.6 + 0.4).toFixed(2);
+  draw();
+}
+
+function masterRandomize(){
+  // Intentionally ignores Smart Pairing for color
+  ui.cell.value = (8 + Math.random()*112)|0;
+  ui.strokeW.value = (Math.random()*4).toFixed(1);
+  randomizeColor(true);
+  ui.gradType.value = randomChoice(['linear','radial','angular']);
+  ui.angle.value = (Math.random()*180)|0;
+  ui.spread.value = (Math.random()*2.4+0.4).toFixed(2);
+  ui.noiseScale.value = (0.008 + Math.random()*0.05).toFixed(3);
+  ui.noiseSpeed.value = (Math.random()*1.5).toFixed(2);
+  draw();
+}
+
+ui.randomize.addEventListener('click', masterRandomize);
+ui.randColor.addEventListener('click', ()=>randomizeColor(false));
+['cell','strokeW','drawLines','fillMode','opacity','hueCycle','gradType','angle','spread','noiseScale','noiseSpeed'].forEach(id=>{
+  ui[id].addEventListener('input', ()=> draw());
+});
+
+// Keyboard
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='A' || e.key==='a' || e.key==='0'){ masterRandomize(); }
+  else if(e.key==='3'){ randomizeColor(false); }
+});
+
+// Loop
+function loop(){
+  if(ui.animate.checked){
+    state.time += parseFloat(ui.animSpeed.value)*0.016;
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+// Boot
+resize();
+setPalette(ui.palette.value || 'Lunar Glow');
+ui.fillMode.value = 'Gradient – Radial';
+draw(true);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

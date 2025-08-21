@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Master Grid Interface — Effects x10</title>
+<style>
+  :root{--bg:#0b0d12;--panel:#121725;--ink:#e6ecff;--muted:#99a7d1;--border:#1f2742;}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{display:grid;grid-template-columns:1fr 360px;grid-template-rows:100vh}
+  #stage{position:relative;background:#06080f}
+  canvas{display:block;width:100%;height:100%;background:#000}
+  aside{background:var(--panel);border-left:1px solid var(--border);padding:14px;overflow:auto}
+  h1{margin:0 0 8px;font-size:16px}
+  h2{margin:14px 0 6px;font-size:13px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0}
+  label{width:150px;color:var(--muted);font-size:12px}
+  select,input[type="text"],input[type="number"],input[type="range"]{flex:1;background:#0f1424;color:var(--ink);border:1px solid var(--border);border-radius:9px;padding:6px 8px}
+  input[type="range"]{padding:0}
+  .btn{background:#0f1424;color:var(--ink);border:1px solid var(--border);border-radius:10px;padding:8px 10px;cursor:pointer}
+  .btn:hover{border-color:#2b3760}
+  .pill{display:inline-block;background:#0e1426;padding:2px 8px;border:1px solid #1b2447;border-radius:999px;margin-right:6px;font-size:12px;color:#cbd4ff}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  footer{margin-top:12px;color:var(--muted);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <aside>
+    <h1>Master Grid Interface <small style="opacity:.6">(with 10 Effects)</small></h1>
+    <div class="pill">A = Master Randomize</div>
+    <div class="pill">[ / ] = Prev/Next Mode</div>
+    <div class="pill">1 = Cycle Mode</div>
+
+    <h2>Grid</h2>
+    <div class="row"><label>Mode</label><select id="gridMode"></select></div>
+    <div class="row"><label>Cell Size</label><input id="cell" type="range" min="8" max="140" value="44" step="1"></div>
+    <div class="two">
+      <div class="row"><label>Stroke</label><input id="strokeW" type="range" min="0" max="4" step="0.1" value="1"></div>
+      <div class="row"><label>Round</label><input id="round" type="range" min="0" max="0.5" step="0.01" value="0.1"></div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Jitter</label><input id="jitter" type="range" min="0" max="1" step="0.01" value="0"></div>
+      <div class="row"><label>Rotation</label><input id="rot" type="range" min="-45" max="45" step="1" value="0"></div>
+    </div>
+    <div class="row"><label><input type="checkbox" id="drawLines" checked> Draw Cell Borders</label></div>
+
+    <h2>Deform</h2>
+    <div class="two">
+      <div class="row"><label>Wave</label><input id="wave" type="range" min="0" max="1.2" step="0.01" value="0.3"></div>
+      <div class="row"><label>Wave Freq</label><input id="waveFreq" type="range" min="0" max="6" step="0.01" value="2.2"></div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Ripple</label><input id="ripple" type="range" min="0" max="1.2" step="0.01" value="0.2"></div>
+      <div class="row"><label>Twist</label><input id="twist" type="range" min="-2" max="2" step="0.01" value="0.4"></div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Shear</label><input id="shear" type="range" min="-1" max="1" step="0.01" value="0"></div>
+      <div class="row"><label>Perspective</label><input id="persp" type="range" min="0" max="1" step="0.01" value="0.15"></div>
+    </div>
+
+    <h2>Color Module</h2>
+    <div class="row"><label>Fill Mode</label><select id="fillMode"></select></div>
+    <div class="row"><label>Opacity</label><input id="opacity" type="range" min="0" max="1" step="0.01" value="1"></div>
+    <div class="row"><label>Palette</label><select id="palette"></select></div>
+    <div class="row"><label><input id="lockPalette" type="checkbox"> Lock Palette</label></div>
+    <div class="row"><label>Custom Hex</label><input id="custom" type="text" placeholder="#ff0066, #ffee00, #00ffcc"></div>
+    <div class="row"><button class="btn" id="applyCustom">Apply Custom</button></div>
+
+    <h2>Gradient</h2>
+    <div class="row"><label>Type</label><select id="gradType"><option value="linear">Linear</option><option value="radial">Radial</option><option value="angular">Angular</option></select></div>
+    <div class="two">
+      <div class="row"><label>Angle</label><input id="angle" type="range" min="0" max="360" step="1" value="30"></div>
+      <div class="row"><label>Spread</label><input id="spread" type="range" min="0.2" max="4" step="0.01" value="1.1"></div>
+    </div>
+
+    <h2>Noise</h2>
+    <div class="two">
+      <div class="row"><label>Scale</label><input id="noiseScale" type="range" min="0.002" max="0.05" step="0.001" value="0.012"></div>
+      <div class="row"><label>Amount</label><input id="noiseAmt" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+    </div>
+    <div class="row"><label>Drift Speed</label><input id="noiseSpeed" type="range" min="0" max="2" step="0.01" value="0.2"></div>
+
+    <h2>Animation</h2>
+    <div class="row"><label><input id="animate" type="checkbox" checked> Animate</label></div>
+    <div class="two">
+      <div class="row"><label>Speed</label><input id="animSpeed" type="range" min="0" max="2" step="0.01" value="0.7"></div>
+      <div class="row"><label><input id="hueCycle" type="checkbox"> Hue Cycle</label></div>
+    </div>
+
+    <h2>Effects</h2>
+    <div class="row"><label><input id="fxEnabled" type="checkbox" checked> Enable Effects</label></div>
+    <div class="row"><label><input id="fxBevelOn" type="checkbox" checked> Bevel / Emboss</label></div>
+    <div class="two">
+      <div class="row"><label>Bevel Depth</label><input id="fxBevelDepth" type="range" min="0" max="1" step="0.01" value="0.35"></div>
+      <div class="row"><label>Gloss</label><input id="fxBevelStrength" type="range" min="0" max="1" step="0.01" value="0.6"></div>
+    </div>
+    <div class="row"><label>Light Angle</label><input id="fxLightAngle" type="range" min="0" max="360" step="1" value="135"></div>
+
+    <div class="row"><label><input id="fxShadowOn" type="checkbox" checked> Drop Shadow</label></div>
+    <div class="two">
+      <div class="row"><label>Shadow X</label><input id="fxShadowX" type="range" min="-40" max="40" step="1" value="6"></div>
+      <div class="row"><label>Shadow Y</label><input id="fxShadowY" type="range" min="-40" max="40" step="1" value="8"></div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Blur</label><input id="fxShadowBlur" type="range" min="0" max="40" step="1" value="12"></div>
+      <div class="row"><label>Opacity</label><input id="fxShadowAlpha" type="range" min="0" max="1" step="0.01" value="0.4"></div>
+    </div>
+
+    <!-- New: 10 easy effects -->
+    <h2>More Effects</h2>
+    <div class="row"><label><input id="fxInnerShadowOn" type="checkbox"> Inner Shadow</label></div>
+    <div class="two">
+      <div class="row"><label>InnerSz</label><input id="fxInnerSize" type="range" min="2" max="60" step="1" value="18"></div>
+      <div class="row"><label>Inner α</label><input id="fxInnerAlpha" type="range" min="0" max="1" step="0.01" value="0.35"></div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Inner X</label><input id="fxInnerX" type="range" min="-40" max="40" step="1" value="-6"></div>
+      <div class="row"><label>Inner Y</label><input id="fxInnerY" type="range" min="-40" max="40" step="1" value="-6"></div>
+    </div>
+
+    <div class="row"><label><input id="fxOuterGlowOn" type="checkbox"> Outer Glow</label></div>
+    <div class="two">
+      <div class="row"><label>Glow Size</label><input id="fxGlowSize" type="range" min="2" max="80" step="1" value="24"></div>
+      <div class="row"><label>Glow α</label><input id="fxGlowAlpha" type="range" min="0" max="1" step="0.01" value="0.35"></div>
+    </div>
+
+    <div class="row"><label><input id="fxInnerGlowOn" type="checkbox"> Inner Glow</label></div>
+    <div class="two">
+      <div class="row"><label>InnerGlow Size</label><input id="fxInnerGlowSize" type="range" min="2" max="80" step="1" value="22"></div>
+      <div class="row"><label>InnerGlow α</label><input id="fxInnerGlowAlpha" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+    </div>
+
+    <div class="row"><label><input id="fxSpecularOn" type="checkbox"> Specular Highlight</label></div>
+    <div class="two">
+      <div class="row"><label>Spec Size</label><input id="fxSpecSize" type="range" min="4" max="80" step="1" value="30"></div>
+      <div class="row"><label>Spec Intensity</label><input id="fxSpecAlpha" type="range" min="0" max="1" step="0.01" value="0.45"></div>
+    </div>
+
+    <div class="row"><label><input id="fxColorCycleOn" type="checkbox"> Color Cycling</label></div>
+    <div class="two">
+      <div class="row"><label>Cycle Speed</label><input id="fxColorCycleSpeed" type="range" min="0" max="2" step="0.01" value="0.6"></div>
+      <div class="row"><label>Cycle Amount</label><input id="fxColorCycleAmt" type="range" min="0" max="0.5" step="0.01" value="0.15"></div>
+    </div>
+
+    <div class="row"><label><input id="fxPulseGlowOn" type="checkbox"> Pulse Glow</label></div>
+    <div class="row"><label>Pulse Speed</label><input id="fxPulseSpeed" type="range" min="0" max="4" step="0.01" value="1.2"></div>
+
+    <div class="row"><label><input id="fxWavyOn" type="checkbox"> Wavy Edge Distortion</label></div>
+    <div class="two">
+      <div class="row"><label>Wavy Amp</label><input id="fxWavyAmp" type="range" min="0" max="12" step="0.1" value="4"></div>
+      <div class="row"><label>Wavy Freq</label><input id="fxWavyFreq" type="range" min="0" max="8" step="0.1" value="2.5"></div>
+    </div>
+
+    <div class="row"><label><input id="fxNoiseOn" type="checkbox"> Noise Overlay</label></div>
+    <div class="two">
+      <div class="row"><label>Noise Amt</label><input id="fxNoiseAmt" type="range" min="0" max="0.6" step="0.01" value="0.15"></div>
+      <div class="row"><label>Noise Scale</label><input id="fxNoiseScale" type="range" min="1" max="6" step="0.1" value="3"></div>
+    </div>
+
+    <div class="row"><label><input id="fxGrainOn" type="checkbox"> Grain</label></div>
+    <div class="row"><label>Grain Amt</label><input id="fxGrainAmt" type="range" min="0" max="0.5" step="0.01" value="0.08"></div>
+
+    <div class="row"><label><input id="fxGradOverlayOn" type="checkbox"> Gradient Overlay</label></div>
+    <div class="two">
+      <div class="row"><label>Type</label>
+        <select id="fxGradType">
+          <option value="linear">Linear</option>
+          <option value="radial">Radial</option>
+        </select>
+      </div>
+      <div class="row"><label>Blend</label>
+        <select id="fxGradBlend">
+          <option value="overlay">overlay</option>
+          <option value="multiply">multiply</option>
+          <option value="screen">screen</option>
+          <option value="soft-light">soft-light</option>
+        </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="row"><label>Angle</label><input id="fxGradAngle" type="range" min="0" max="360" step="1" value="-45"></div>
+      <div class="row"><label>Opacity</label><input id="fxGradAlpha" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+    </div>
+
+    <div class="row" style="gap:8px; margin-top:10px">
+      <button class="btn" id="randomize">Master Randomize</button>
+      <button class="btn" id="export">Export PNG</button>
+    </div>
+
+    <footer>Note: Effects are drawn with Canvas 2D (shadows, gradients, blends, and overlays).</footer>
+  </aside>
+</div>
+<script>
+// ====== Utils ======
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const fract=v=>v-Math.floor(v);
+function hexToRgb(hex){hex=hex.replace('#','').trim(); if(hex.length===3)hex=hex.split('').map(x=>x+x).join(''); const n=parseInt(hex,16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}}
+function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;const max=Math.max(r,g,b),min=Math.min(r,g,b);let h,s,l=(max+min)/2;if(max===min){h=s=0;}else{const d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}h/=6;}return {h,s,l}};
+function hslToRgb(h,s,l){const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p};let r,g,b;if(s===0){r=g=b=l;}else{const q=l<0.5?l*(1+s):l+s-l*s;const p=2*l-q;r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);}return {r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b)}}
+function mulberry32(a){return function(){var t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296}}
+function makeValueNoise2D(seed=12345){const rand=mulberry32(seed);const perm=new Uint32Array(1024);for(let i=0;i<perm.length;i++)perm[i]=Math.floor(rand()*1e9);const hash=(x,y)=>{let h=perm[(x&1023)]^((perm[(y&1023)]<<13)|(perm[(y&1023)]>>>19));h=(h*1597334677)>>>0;return (h&0xffff)/0xffff};const s=t=>t*t*(3-2*t);return (x,y)=>{const xi=Math.floor(x),yi=Math.floor(y);const xf=x-xi,yf=y-yi;const v00=hash(xi,yi),v10=hash(xi+1,yi),v01=hash(xi,yi+1),v11=hash(xi+1,yi+1);const u=s(xf),v=s(yf);const x1=lerp(v00,v10,u),x2=lerp(v01,v11,u);return lerp(x1,x2,v)}}
+class ColorRamp{constructor(colors){this.setColors(colors)} setColors(colors){this.colors=colors.map(c=>typeof c==="string"?hexToRgb(c):c);this.hsl=this.colors.map(c=>rgbToHsl(c.r,c.g,c.b))} get(t,hueShift=0,lightMul=1){t=clamp(t,0,1);const n=this.hsl.length;if(n===0)return 'rgb(255,255,255)'; if(n===1){let {h,s,l}=this.hsl[0];h=(h+hueShift)%1;if(h<0)h+=1;l=clamp(l*lightMul,0,1);const {r,g,b}=hslToRgb(h,s,l);return `rgb(${r},${g},${b})`;}const pos=t*(n-1);const i=Math.floor(pos);const f=pos-i;const a=this.hsl[i];const b=this.hsl[Math.min(i+1,n-1)];let dh=b.h-a.h; if(dh>0.5)dh-=1; if(dh<-0.5)dh+=1; let h=(a.h+dh*f+hueShift)%1;if(h<0)h+=1; const s=lerp(a.s,b.s,f); const l=clamp(lerp(a.l,b.l,f)*lightMul,0,1); const {r,g,b:bb}=hslToRgb(h,s,l); return `rgb(${r},${g},${bb})`}}
+
+// ====== Palettes & Fill Modes ======
+const PRESET_PALETTES={
+  "Metro Neon":["#00f5d4","#00bbf9","#8338ec","#ff006e","#fb5607"],
+  "Pastel Dream":["#ffd6e0","#e7c6ff","#caffbf","#fdffb6","#bde0fe"],
+  "Sunset":["#120c31","#3a0ca3","#7209b7","#f72585","#ffba08"],
+  "Ocean":["#001219","#005f73","#0a9396","#94d2bd","#e9d8a6"],
+  "Forest":["#0b3d20","#14532d","#1f6f43","#7aa874","#d1f5be"],
+  "Candy":["#ffadad","#ffd6a5","#fdffb6","#caffbf","#9bf6ff"],
+  "Mono Ink":["#0b0d12","#1a2236","#44506b","#9fb0d6","#e6ecff"],
+  "Fire & Ice":["#00b4d8","#0077b6","#03045e","#ff6b6b","#ffd166"],
+  "Solar":["#001219","#1b263b","#415a77","#e0fbfc","#fca311"],
+  "Neon Synthwave":["#00e5ff","#ff3dff","#9b5de5","#f15bb5","#0a0a0a"],
+  "Cyberpunk Tokyo":["#0affef","#ff0054","#7b2cbf","#00f5a0","#16161a"],
+  "Desert Mirage":["#f1e0c5","#d9ae7e","#c56b2a","#b56576","#6b4f4f"]
+};
+const ColorModes=['Solid','Alternating','Gradient – Linear','Gradient – Radial','Gradient – Angular','Noise – Hue','Noise – Brightness','Texture – Stripes','Rule – Mod 3'];
+const GRID_MODES=[
+  'Square Grid','Rectangular Grid','Triangular Grid','Hexagonal Grid','Diamond Grid','Radial Grid','Polar Grid','Spiral Grid','Voronoi Grid (approx)','Delaunay Triangulation (approx)',
+  'Wave-Deformed Grid','Noise-Warped Grid','Ripple Grid','Twist Grid','Sheared Grid','Fractal Grid (recursive)','Isometric Grid','Cylindrical Grid','Spherical Grid','Tiling Grid (periodic)',
+  'Checkerboard Grid','Lattice Grid','Dot Matrix Grid','Organic Grid','Adaptive Grid',
+  'Pentagonal Grid (Cairo)','Octagon-Square Grid','Rhombille Grid','Kite-Dart (Penrose approx)','Quasi-Crystal (approx)',
+  'Perspective Grid','Fish-Eye Grid','Fractal Spiral Grid','Wave-Bend Grid','Swirl Grid',
+  'Honeycomb Rings','Cross-Hatch Grid','Dot-Lattice Grid','Checker-Warp Grid','Circle-Packing (approx)',
+  'Sliding Grid','Shattered Grid','Orbit Grid','Ripple-Propagated Grid','Jitter Grid',
+  'Recursive Subdivision','Hilbert Curve Grid','Hex-Pixel Grid','Randomized Grid','Adaptive Heatmap Grid'
+];
+
+// ====== DOM ======
+const ui={};
+['gridMode','cell','strokeW','round','jitter','rot','drawLines','wave','waveFreq','ripple','twist','shear','persp','fillMode','opacity','palette','lockPalette','custom','applyCustom','gradType','angle','spread','noiseScale','noiseAmt','noiseSpeed','animate','animSpeed','hueCycle','randomize','export','fxEnabled','fxBevelOn','fxBevelDepth','fxBevelStrength','fxLightAngle','fxShadowOn','fxShadowX','fxShadowY','fxShadowBlur','fxShadowAlpha','fxInnerShadowOn','fxInnerSize','fxInnerAlpha','fxInnerX','fxInnerY','fxOuterGlowOn','fxGlowSize','fxGlowAlpha','fxInnerGlowOn','fxInnerGlowSize','fxInnerGlowAlpha','fxSpecularOn','fxSpecSize','fxSpecAlpha','fxColorCycleOn','fxColorCycleSpeed','fxColorCycleAmt','fxPulseGlowOn','fxPulseSpeed','fxWavyOn','fxWavyAmp','fxWavyFreq','fxNoiseOn','fxNoiseAmt','fxNoiseScale','fxGrainOn','fxGrainAmt','fxGradOverlayOn','fxGradType','fxGradBlend','fxGradAngle','fxGradAlpha'].forEach(id=>ui[id]=document.getElementById(id));
+
+// Populate selects
+const gridSel=ui.gridMode; GRID_MODES.forEach((m,i)=>{const o=document.createElement('option');o.value=m;o.textContent=(i+1).toString().padStart(2,'0')+' – '+m;gridSel.appendChild(o)}); gridSel.value=GRID_MODES[0];
+ColorModes.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;ui.fillMode.appendChild(o)}); ui.fillMode.value='Gradient – Linear';
+Object.keys(PRESET_PALETTES).forEach((k,i)=>{const o=document.createElement('option');o.value=k;o.textContent=k;if(i===0)o.selected=true;ui.palette.appendChild(o)});
+
+// ====== State & Canvas ======
+const canvas=document.getElementById('cv'); const ctx=canvas.getContext('2d');
+let dpr=1; function resize(){dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1)); const w=document.getElementById('stage').clientWidth; const h=document.getElementById('stage').clientHeight; canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr); canvas.style.width=w+'px'; canvas.style.height=h+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);} window.addEventListener('resize',resize); resize();
+const state={time:0, ramp:new ColorRamp(PRESET_PALETTES[ui.palette.value]), noise:makeValueNoise2D(((Math.random()*1e9)|0))};
+function setPalette(key){state.ramp.setColors(PRESET_PALETTES[key])}
+
+// ====== Color Module: cell color ======
+function projectLinear(nx,ny,angle,spread){const c=Math.cos(angle),s=Math.sin(angle);return (nx*c+ny*s)*spread}
+function colorForCell(nx,ny,row,col,idx,t){
+  const mode=ui.fillMode.value; const opacity=parseFloat(ui.opacity.value); ctx.globalAlpha=opacity;
+  const anim=parseFloat(ui.animSpeed.value)*(ui.animate.checked?1:0);
+  const hueShift=(ui.hueCycle.checked? (0.15*Math.sin(t*anim*0.9)) : 0) + (ui.fxColorCycleOn && ui.fxColorCycleOn.checked ? parseFloat(ui.fxColorCycleAmt.value) * Math.sin(t * parseFloat(ui.fxColorCycleSpeed.value)) : 0);
+  const breathMul=1;
+  let color='rgb(255,255,255)';
+
+  if(mode==='Solid'){ color=state.ramp.get(0.5,hueShift,breathMul); }
+  else if(mode==='Alternating'){ const n=state.ramp.hsl.length; const ti=n<=1?0.5: ((row+col)%n)/(n-1); color=state.ramp.get(ti,hueShift,breathMul); }
+  else if(mode.startsWith('Gradient')){
+    const type=ui.gradType.value; const s=parseFloat(ui.spread.value); const ang=(parseFloat(ui.angle.value)*Math.PI/180);
+    if(type==='linear'){ const p=projectLinear(nx-0.5,ny-0.5,ang,s); const tLin=clamp(p*0.5+0.5,0,1); color=state.ramp.get(tLin,hueShift,breathMul); }
+    else if(type==='radial'){ const dx=nx-0.5, dy=ny-0.5; const d=Math.sqrt(dx*dx+dy*dy)*s; color=state.ramp.get(clamp(d*1.5,0,1),hueShift,breathMul); }
+    else { const a=Math.atan2(ny-0.5,nx-0.5); const tAng=((a/Math.PI)+1)/2; const tWrap=fract(tAng*s); color=state.ramp.get(tWrap,hueShift,breathMul); }
+  }
+  else if(mode==='Noise – Hue' || mode==='Noise – Brightness'){
+    const scale=parseFloat(ui.noiseScale.value), amount=parseFloat(ui.noiseAmt.value), drift=parseFloat(ui.noiseSpeed.value); const n=state.noise(nx/scale+ state.time*drift, ny/scale + 17.3);
+    const base=(mode==='Noise – Hue')? ((row+col)%2?0.7:0.3):0.5; const tn=clamp(n*amount+(1-amount)*base,0,1); color=state.ramp.get(tn,hueShift,breathMul);
+  }
+  else if(mode==='Texture – Stripes'){
+    const ang=(parseFloat(ui.angle.value)*Math.PI/180); const freq=parseFloat(ui.spread.value)*10; const p=projectLinear(nx,ny,ang,freq); const s0=Math.sin(p*2*Math.PI + state.time*0.8); color=state.ramp.get(s0*0.5+0.5,hueShift,breathMul);
+  }
+  else if(mode==='Rule – Mod 3'){ const seq=[0.1,0.5,0.9]; color=state.ramp.get(seq[idx%3],hueShift,breathMul); }
+  return color;
+}
+
+// ====== Paths ======
+function pathRoundedRect(x,y,w,h,r){r=Math.min(r,Math.min(w,h)/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);}
+function pathWavyRect(x,y,w,h,r){ r=Math.min(r,Math.min(w,h)/2); const amp=parseFloat(ui.fxWavyAmp?.value||0)*(ui.fxWavyOn?.checked?1:0); const freq=parseFloat(ui.fxWavyFreq?.value||0); const t=state.time; const seg=16; const push=(px,py,nx,ny,i,len)=>{ const phase=(i/len)*Math.PI*2*freq + t*0.8; const off=amp*Math.sin(phase); ctx.lineTo(px+nx*off, py+ny*off); }; ctx.beginPath(); ctx.moveTo(x+r,y); for(let i=1;i<=seg;i++){ const px=lerp(x+r,x+w-r,i/seg); push(px,y,0,-1,i,seg); } for(let i=1;i<=seg;i++){ const th=lerp(-Math.PI/2,0,i/seg); const px=x+w-r + r*Math.cos(th); const py=y+r + r*Math.sin(th); push(px,py,Math.cos(th),Math.sin(th),i,seg);} for(let i=1;i<=seg;i++){ const py=lerp(y+r,y+h-r,i/seg); push(x+w,py,1,0,i,seg);} for(let i=1;i<=seg;i++){ const th=lerp(0,Math.PI/2,i/seg); const px=x+w-r + r*Math.cos(th); const py=y+h-r + r*Math.sin(th); push(px,py,Math.cos(th),Math.sin(th),i,seg);} for(let i=1;i<=seg;i++){ const px=lerp(x+w-r,x+r, i/seg); push(px,y+h,0,1,i,seg);} for(let i=1;i<=seg;i++){ const th=lerp(Math.PI/2,Math.PI,i/seg); const px=x+r + r*Math.cos(th); const py=y+h-r + r*Math.sin(th); push(px,py,Math.cos(th),Math.sin(th),i,seg);} for(let i=1;i<=seg;i++){ const py=lerp(y+h-r,y+r,i/seg); push(x,py,-1,0,i,seg);} for(let i=1;i<=seg;i++){ const th=lerp(Math.PI,3*Math.PI/2,i/seg); const px=x+r + r*Math.cos(th); const py=y+r + r*Math.sin(th); push(px,py,Math.cos(th),Math.sin(th),i,seg);} ctx.closePath(); }
+function beginRoundedOrWavyRect(x,y,w,h,r){ if(ui.fxWavyOn && ui.fxWavyOn.checked){ pathWavyRect(x,y,w,h,r); } else { pathRoundedRect(x,y,w,h,r); } }
+function drawHex(cx,cy,r){const a=Math.PI/3; ctx.beginPath(); for(let i=0;i<6;i++){const th=a*i; const px=cx+r*Math.cos(th), py=cy+r*Math.sin(th); i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath();}
+function drawTriangle(cx,cy,s,flip){const h=s*Math.sqrt(3)/2; ctx.beginPath(); if(!flip){ ctx.moveTo(cx,cy-h/2); ctx.lineTo(cx-s/2,cy+h/2); ctx.lineTo(cx+s/2,cy+h/2);} else { ctx.moveTo(cx,cy+h/2); ctx.lineTo(cx-s/2,cy-h/2); ctx.lineTo(cx+s/2,cy-h/2);} ctx.closePath();}
+
+// Deformers
+function applyDeforms(x,y,w,h,t){
+  const nx=x/w, ny=y/h; const cx=nx-0.5, cy=ny-0.5; let dx=0,dy=0;
+  const wav=parseFloat(ui.wave.value), wf=parseFloat(ui.waveFreq.value); if(wav>0){ dx+=Math.sin((ny*wf*2*Math.PI)+t)*wav*10; dy+=Math.cos((nx*wf*2*Math.PI)-t*0.7)*wav*10; }
+  const rp=parseFloat(ui.ripple.value); if(rp>0){ const d=Math.hypot(cx,cy); const s=Math.sin(d*20 - t*2)*rp*12; dx+= (cx/(d+1e-4))*s; dy+=(cy/(d+1e-4))*s; }
+  const tw=parseFloat(ui.twist.value); if(Math.abs(tw)>0.001){ const ang=tw*(Math.hypot(cx,cy))*2; const cos=Math.cos(ang), sin=Math.sin(ang); const rx=cx*cos - cy*sin; const ry=cx*sin + cy*cos; dx+=(rx-cx)*w; dy+=(ry-cy)*h; }
+  const sh=parseFloat(ui.shear.value); if(Math.abs(sh)>0.001){ dx+= (ny-0.5)*sh*80; }
+  const p=parseFloat(ui.persp.value); if(p>0){ const m=lerp(1, 0.5, Math.abs(ny-0.5)*2*p); dy+= (1-m)* (ny-0.5)*h; }
+  return {dx,dy};
+}
+
+// ====== Effects Rendering ======
+function applyEffectsAfterPath(fillColor, cx, cy, approxSize){
+  if(!ui.fxEnabled.checked){ ctx.fillStyle = fillColor; ctx.fill(); return; }
+
+  // Outer Glow (pulse optional)
+  if(ui.fxOuterGlowOn && ui.fxOuterGlowOn.checked){
+    ctx.save();
+    const baseA = parseFloat(ui.fxGlowAlpha.value);
+    let pulse = 1;
+    if(ui.fxPulseGlowOn && ui.fxPulseGlowOn.checked){
+      const sp = parseFloat(ui.fxPulseSpeed.value);
+      pulse = 0.5 + 0.5*Math.sin(state.time*sp*2.0);
+    }
+    ctx.shadowColor = `rgba(255,255,255,${(baseA*pulse).toFixed(3)})`;
+    ctx.shadowBlur  = parseInt(ui.fxGlowSize.value,10);
+    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    ctx.fillStyle = fillColor; ctx.fill();
+    ctx.restore();
+  }
+
+  // Drop Shadow
+  if(ui.fxShadowOn.checked){
+    ctx.save();
+    ctx.shadowColor = `rgba(0,0,0,${parseFloat(ui.fxShadowAlpha.value)})`;
+    ctx.shadowBlur  = parseInt(ui.fxShadowBlur.value,10);
+    ctx.shadowOffsetX = parseInt(ui.fxShadowX.value,10);
+    ctx.shadowOffsetY = parseInt(ui.fxShadowY.value,10);
+    ctx.fillStyle = fillColor; ctx.fill();
+    ctx.restore();
+  }
+
+  // Base fill
+  ctx.fillStyle = fillColor; ctx.fill();
+
+  // Inner Shadow / Glow via radial gradients
+  if((ui.fxInnerGlowOn && ui.fxInnerGlowOn.checked) || (ui.fxInnerShadowOn && ui.fxInnerShadowOn.checked)){
+    ctx.save(); ctx.clip();
+    const size = (ui.fxInnerGlowOn?.checked? parseFloat(ui.fxInnerGlowSize.value): parseFloat(ui.fxInnerSize.value));
+    const alpha = (ui.fxInnerGlowOn?.checked? parseFloat(ui.fxInnerGlowAlpha.value): parseFloat(ui.fxInnerAlpha.value));
+    const ox = (ui.fxInnerShadowOn?.checked? parseFloat(ui.fxInnerX.value): 0);
+    const oy = (ui.fxInnerShadowOn?.checked? parseFloat(ui.fxInnerY.value): 0);
+    const g = ctx.createRadialGradient(cx+ox,cy+oy, Math.max(1, approxSize*0.1), cx,cy, Math.max(approxSize, size));
+    if(ui.fxInnerShadowOn?.checked){
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, `rgba(0,0,0,${alpha})`);
+      const prev = ctx.globalCompositeOperation; ctx.globalCompositeOperation='multiply'; ctx.fillStyle=g; ctx.fillRect(cx-approxSize,cy-approxSize,approxSize*2,approxSize*2); ctx.globalCompositeOperation=prev;
+    }
+    if(ui.fxInnerGlowOn?.checked){
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      const prev = ctx.globalCompositeOperation; ctx.globalCompositeOperation='screen'; ctx.fillStyle=g; ctx.fillRect(cx-approxSize,cy-approxSize,approxSize*2,approxSize*2); ctx.globalCompositeOperation=prev;
+    }
+    ctx.restore();
+  }
+
+  // Bevel overlay
+  if(ui.fxBevelOn.checked){
+    const depth = parseFloat(ui.fxBevelDepth.value);
+    const strength = parseFloat(ui.fxBevelStrength.value);
+    const ang = (parseFloat(ui.fxLightAngle.value) * Math.PI)/180;
+    const d = Math.max(8, approxSize*0.6*depth);
+    const x0 = cx - Math.cos(ang)*d;
+    const y0 = cy - Math.sin(ang)*d;
+    const x1 = cx + Math.cos(ang)*d;
+    const y1 = cy + Math.sin(ang)*d;
+    const g = ctx.createLinearGradient(x0,y0,x1,y1);
+    const hiA = 0.50*strength;
+    const loA = 0.55*strength;
+    g.addColorStop(0, `rgba(255,255,255,${hiA})`);
+    g.addColorStop(0.48, `rgba(255,255,255,0)`);
+    g.addColorStop(0.52, `rgba(0,0,0,0)`);
+    g.addColorStop(1, `rgba(0,0,0,${loA})`);
+    ctx.save(); ctx.clip(); const prev = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = g; ctx.fillRect(cx-d, cy-d, d*2, d*2); ctx.globalCompositeOperation = prev; ctx.restore();
+  }
+
+  // Specular highlight
+  if(ui.fxSpecularOn && ui.fxSpecularOn.checked){
+    const ang=(parseFloat(ui.fxLightAngle.value)*Math.PI)/180;
+    const dist=Math.max(approxSize*0.25, 8);
+    const px=cx+Math.cos(ang)*dist;
+    const py=cy+Math.sin(ang)*dist;
+    const r=Math.max(6, parseFloat(ui.fxSpecSize.value));
+    const g=ctx.createRadialGradient(px,py,0,px,py,r);
+    g.addColorStop(0, `rgba(255,255,255,${parseFloat(ui.fxSpecAlpha.value)})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.save(); ctx.clip(); const prev=ctx.globalCompositeOperation; ctx.globalCompositeOperation='screen'; ctx.fillStyle=g; ctx.fillRect(px-r,py-r,r*2,r*2); ctx.globalCompositeOperation=prev; ctx.restore();
+  }
+}
+
+// ====== Core Render ======
+function draw(){
+  const w=canvas.width/dpr, h=canvas.height/dpr; ctx.clearRect(0,0,w,h);
+  const mode=ui.gridMode.value; const cell=parseInt(ui.cell.value,10); const stroke=parseFloat(ui.strokeW.value); const round=parseFloat(ui.round.value); const jitter=parseFloat(ui.jitter.value); const rot=parseFloat(ui.rot.value)*Math.PI/180; const t=state.time;
+  ctx.save(); ctx.translate(w/2,h/2); ctx.rotate(rot); ctx.translate(-w/2,-h/2);
+  const drawStroke=ui.drawLines.checked; ctx.lineWidth=stroke; ctx.strokeStyle='rgba(25,35,60,0.7)';
+
+  if(mode==='Hexagonal Grid' || mode==='Honeycomb Rings' || mode==='Hex-Pixel Grid'){
+    const r=cell*0.5; const dx=r*Math.sqrt(3); const dy=r*1.5; const cols=Math.ceil(w/dx)+2; const rows=Math.ceil(h/dy)+2;
+    for(let rI=0;rI<rows;rI++){
+      for(let cI=0;cI<cols;cI++){
+        let cx=cI*dx + ((rI%2)? dx/2 : 0); let cy=rI*dy; const disp=applyDeforms(cx,cy,w,h,t); cx+=disp.dx; cy+=disp.dy;
+        ctx.beginPath();
+        drawHex(cx,cy,r*0.95);
+        const col=colorForCell(cx/w,cy/h,rI,cI,rI*cols+cI,t);
+        applyEffectsAfterPath(col, cx, cy, r*2);
+        if(drawStroke){ctx.stroke();}
+      }
+    }
+  } else {
+    const cols=Math.ceil(w/cell)+2, rows=Math.ceil(h/cell)+2;
+    for(let rI=0;rI<rows;rI++){
+      for(let cI=0;cI<cols;cI++){
+        let x=cI*cell, y=rI*cell;
+        if(mode==='Diamond Grid'){ y+= (cI%2)*cell*0.5; }
+        if(mode==='Triangular Grid' || mode==='Rhombille Grid' || mode==='Cross-Hatch Grid'){ x+= (rI%2)*cell*0.5; }
+        if(mode==='Sliding Grid'){ x+= Math.sin((rI*0.3)+t)*cell*0.3; }
+        if(mode==='Shattered Grid'){ x+= (Math.sin(rI*12.345+cI)*0.5)*cell*0.2; y+= (Math.cos(cI*9.87+rI)*0.5)*cell*0.2; }
+        if(mode==='Orbit Grid'){ const a=t*0.4 + (rI+cI)*0.05; x+=Math.cos(a)*10; y+=Math.sin(a)*10; }
+        if(mode==='Jitter Grid'){ x+= (Math.random()-0.5)*cell*0.1*jitter; y+= (Math.random()-0.5)*cell*0.1*jitter; }
+
+        const disp=applyDeforms(x+cell*0.5,y+cell*0.5,w,h,t); x+=disp.dx; y+=disp.dy;
+        const cx=x+cell*0.5, cy=y+cell*0.5;
+        const nx=cx/w, ny=cy/h;
+        const color=colorForCell(nx,ny,rI,cI,rI*cols+cI,t);
+
+        // Rounded-rect family (enable wavy edges here)
+        const roundedList = new Set(['Wave-Deformed Grid','Wave-Bend Grid','Swirl Grid','Twist Grid','Sheared Grid','Perspective Grid','Fish-Eye Grid','Cylindrical Grid','Spherical Grid','Polar Grid','Radial Grid','Spiral Grid','Fractal Spiral Grid','Orbit Grid','Ripple-Propagated Grid','Ripple Grid','Checkerboard Grid','Checker-Warp Grid','Isometric Grid','Noise-Warped Grid','Organic Grid','Randomized Grid','Recursive Subdivision','Fractal Grid (recursive)','Hilbert Curve Grid','Delaunay Triangulation (approx)','Voronoi Grid (approx)','Quasi-Crystal (approx)','Kite-Dart (Penrose approx)','Tiling Grid (periodic)']);
+
+        if(mode==='Dot Matrix Grid' || mode==='Dot-Lattice Grid' || mode==='Circle-Packing (approx)' || mode==='Adaptive Heatmap Grid'){
+          let rad = cell*0.35;
+          if(mode==='Circle-Packing (approx)' || mode==='Adaptive Heatmap Grid'){
+            const n=state.noise(nx/parseFloat(ui.noiseScale.value), ny/parseFloat(ui.noiseScale.value));
+            rad = lerp(cell*0.12, cell*0.48, n);
+          }
+          ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2);
+          applyEffectsAfterPath(color, cx, cy, rad*2);
+        }
+        else if(mode==='Triangular Grid' || mode==='Rhombille Grid'){
+          const flip=((rI+cI)%2)===0; drawTriangle(cx,cy,cell*0.95,flip);
+          applyEffectsAfterPath(color, cx, cy, cell);
+        }
+        else if(mode==='Isometric Grid'){
+          ctx.save(); ctx.translate(cx,cy); ctx.rotate(Math.PI/4); ctx.translate(-cx,-cy);
+          beginRoundedOrWavyRect(cx-cell/2,cy-cell/2,cell*0.98,cell*0.98,parseFloat(ui.round.value)*cell);
+          applyEffectsAfterPath(color, cx, cy, cell); ctx.restore();
+        }
+        else if(mode==='Octagon-Square Grid'){
+          const s=cell*0.9; const k=s*0.22; ctx.beginPath();
+          ctx.moveTo(cx-s/2+k,cy-s/2); ctx.lineTo(cx+s/2-k,cy-s/2); ctx.lineTo(cx+s/2,cy-s/2+k); ctx.lineTo(cx+s/2,cy+s/2-k); ctx.lineTo(cx+s/2-k,cy+s/2); ctx.lineTo(cx-s/2+k,cy+s/2); ctx.lineTo(cx-s/2,cy+s/2-k); ctx.lineTo(cx-s/2,cy-s/2+k); ctx.closePath();
+          applyEffectsAfterPath(color, cx, cy, s);
+        }
+        else if(mode==='Pentagonal Grid (Cairo)'){
+          const s=cell*0.9; const a=Math.PI*2/5; const r=s*0.42; ctx.beginPath(); for(let i=0;i<5;i++){const th=i*a - Math.PI/2; const px=cx+r*Math.cos(th), py=cy+r*Math.sin(th); i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath();
+          applyEffectsAfterPath(color, cx, cy, s);
+        }
+        else if(roundedList.has(mode)){
+          beginRoundedOrWavyRect(cx-cell/2,cy-cell/2,cell*0.98,cell*0.98,parseFloat(ui.round.value)*cell);
+          applyEffectsAfterPath(color, cx, cy, cell);
+        }
+        else {
+          beginRoundedOrWavyRect(cx-cell/2,cy-cell/2,cell*0.98,cell*0.98,parseFloat(ui.round.value)*cell);
+          applyEffectsAfterPath(color, cx, cy, cell);
+        }
+        if(drawStroke){ctx.stroke();}
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// === Post Overlays ===
+function postOverlays(){
+  const w=canvas.width/dpr, h=canvas.height/dpr;
+  if(ui.fxGradOverlayOn && ui.fxGradOverlayOn.checked){
+    const type=ui.fxGradType.value; const a=(parseFloat(ui.fxGradAngle.value)*Math.PI)/180; const alpha=parseFloat(ui.fxGradAlpha.value); const blend=ui.fxGradBlend.value; let g=null;
+    if(type==='linear'){ const cx=w/2, cy=h/2; const dx=Math.cos(a)*w, dy=Math.sin(a)*h; g=ctx.createLinearGradient(cx-dx,cy-dy,cx+dx,cy+dy); }
+    else { g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7); }
+    g.addColorStop(0, state.ramp.get(0.1,0,1)); g.addColorStop(1, state.ramp.get(0.9,0,1));
+    ctx.save(); const prev=ctx.globalCompositeOperation; ctx.globalCompositeOperation=blend; ctx.globalAlpha=alpha; ctx.fillStyle=g; ctx.fillRect(0,0,w,h); ctx.globalAlpha=1; ctx.globalCompositeOperation=prev; ctx.restore();
+  }
+  if(ui.fxNoiseOn && ui.fxNoiseOn.checked){
+    const amt=parseFloat(ui.fxNoiseAmt.value); const sc=parseFloat(ui.fxNoiseScale.value);
+    const step=Math.max(1,Math.floor(sc));
+    const img=ctx.createImageData(w,h); const data=img.data;
+    for(let y=0;y<h;y+=step){
+      for(let x=0;x<w;x+=step){
+        const v=(Math.random()*255)|0;
+        for(let yy=0;yy<step;yy++){
+          for(let xx=0;xx<step;xx++){
+            const ix=((y+yy)*w + (x+xx))<<2;
+            data[ix]=data[ix+1]=data[ix+2]=v;
+            data[ix+3]=(amt*255)|0;
+          }
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+  if(ui.fxGrainOn && ui.fxGrainOn.checked){
+    const amt=parseFloat(ui.fxGrainAmt.value); const count=((w*h)/800)|0; ctx.save(); ctx.globalAlpha=amt;
+    for(let i=0;i<count;i++){ const x=Math.random()*w, y=Math.random()*h; ctx.fillStyle='rgba(255,255,255,1)'; ctx.fillRect(x,y,1,1); }
+    ctx.restore();
+  }
+}
+
+// ====== Wiring ======
+['gridMode','cell','strokeW','round','jitter','rot','drawLines','wave','waveFreq','ripple','twist','shear','persp','fillMode','opacity','palette','gradType','angle','spread','noiseScale','noiseAmt','noiseSpeed','animate','animSpeed','hueCycle','fxEnabled','fxBevelOn','fxBevelDepth','fxBevelStrength','fxLightAngle','fxShadowOn','fxShadowX','fxShadowY','fxShadowBlur','fxShadowAlpha','fxInnerShadowOn','fxInnerSize','fxInnerAlpha','fxInnerX','fxInnerY','fxOuterGlowOn','fxGlowSize','fxGlowAlpha','fxInnerGlowOn','fxInnerGlowSize','fxInnerGlowAlpha','fxSpecularOn','fxSpecSize','fxSpecAlpha','fxColorCycleOn','fxColorCycleSpeed','fxColorCycleAmt','fxPulseGlowOn','fxPulseSpeed','fxWavyOn','fxWavyAmp','fxWavyFreq','fxNoiseOn','fxNoiseAmt','fxNoiseScale','fxGrainOn','fxGrainAmt','fxGradOverlayOn','fxGradType','fxGradBlend','fxGradAngle','fxGradAlpha'].forEach(id=> ui[id].addEventListener('input',()=>{ draw(); postOverlays(); }));
+
+ui.applyCustom.addEventListener('click',()=>{const raw=ui.custom.value.trim(); if(!raw)return; const parts=raw.split(/[\\s,]+/).filter(Boolean); try{ state.ramp.setColors(parts); ui.lockPalette.checked=true; draw(); postOverlays(); }catch(e){ alert('Use comma-separated hex like #ff0066, #ffee00'); }});
+ui.palette.addEventListener('change',()=>{ if(!ui.lockPalette.checked){ setPalette(ui.palette.value); draw(); postOverlays(); } else { setPalette(ui.palette.value); draw(); postOverlays(); } });
+ui.randomize.addEventListener('click',()=>masterRandomize());
+ui.export.addEventListener('click',()=>{const link=document.createElement('a'); link.download='grid-effects.png'; link.href=canvas.toDataURL('image/png'); link.click();});
+
+window.addEventListener('keydown',(e)=>{ if(e.key==='A' || e.key==='a'){ masterRandomize(); } else if(e.key===']'){ stepMode(1); } else if(e.key==='['){ stepMode(-1);} else if(e.key==='1'){ stepMode(1);} });
+
+function stepMode(dir){ const list=GRID_MODES; const sel=ui.gridMode; const i=list.indexOf(sel.value); const j=(i+dir+list.length)%list.length; sel.value=list[j]; draw(); postOverlays(); }
+
+function masterRandomize(){
+  ui.gridMode.value = GRID_MODES[(Math.random()*GRID_MODES.length)|0];
+  ui.cell.value = (Math.random()*100+12)|0; ui.strokeW.value=(Math.random()*2.5).toFixed(1); ui.round.value=(Math.random()*0.5).toFixed(2); ui.jitter.value=Math.random().toFixed(2); ui.rot.value=((Math.random()*90)-45).toFixed(0); ui.drawLines.checked=Math.random()>0.3;
+  ui.wave.value=(Math.random()*1.2).toFixed(2); ui.waveFreq.value=(Math.random()*6).toFixed(2); ui.ripple.value=(Math.random()*1.2).toFixed(2); ui.twist.value=((Math.random()*4)-2).toFixed(2); ui.shear.value=((Math.random()*2)-1).toFixed(2); ui.persp.value=(Math.random()).toFixed(2);
+  ui.fillMode.value = ColorModes[(Math.random()*ColorModes.length)|0]; if(!ui.lockPalette.checked){ const keys=Object.keys(PRESET_PALETTES); const k=keys[(Math.random()*keys.length)|0]; ui.palette.value=k; setPalette(k);} ui.opacity.value=(Math.random()*0.6+0.4).toFixed(2);
+  ui.gradType.value=['linear','radial','angular'][(Math.random()*3)|0]; ui.angle.value=(Math.random()*360)|0; ui.spread.value=(Math.random()*3+0.2).toFixed(2); ui.noiseScale.value=(Math.random()*0.04+0.005).toFixed(3); ui.noiseAmt.value=Math.random().toFixed(2); ui.noiseSpeed.value=(Math.random()*1.2).toFixed(2);
+  ui.animate.checked=true; ui.animSpeed.value=(Math.random()*1.4+0.2).toFixed(2); ui.hueCycle.checked=Math.random()>0.5;
+
+  // Effects randomize
+  ui.fxEnabled.checked=true;
+  ui.fxBevelOn.checked=Math.random()>0.2; ui.fxBevelDepth.value=(Math.random()*0.6+0.2).toFixed(2); ui.fxBevelStrength.value=(Math.random()*0.6+0.3).toFixed(2); ui.fxLightAngle.value=(Math.random()*360)|0;
+  ui.fxShadowOn.checked=Math.random()>0.2; ui.fxShadowX.value=((Math.random()*16)-8).toFixed(0); ui.fxShadowY.value=((Math.random()*18)+4).toFixed(0); ui.fxShadowBlur.value=((Math.random()*18)+6).toFixed(0); ui.fxShadowAlpha.value=(Math.random()*0.35+0.25).toFixed(2);
+
+  ui.fxInnerShadowOn.checked=Math.random()>0.5; ui.fxInnerSize.value=((Math.random()*40)+10)|0; ui.fxInnerAlpha.value=(Math.random()*0.4+0.15).toFixed(2); ui.fxInnerX.value=((Math.random()*12)-6)|0; ui.fxInnerY.value=((Math.random()*12)-6)|0;
+  ui.fxOuterGlowOn.checked=Math.random()>0.5; ui.fxGlowSize.value=((Math.random()*40)+10)|0; ui.fxGlowAlpha.value=(Math.random()*0.4+0.1).toFixed(2);
+  ui.fxInnerGlowOn.checked=Math.random()>0.5; ui.fxInnerGlowSize.value=((Math.random()*40)+10)|0; ui.fxInnerGlowAlpha.value=(Math.random()*0.4+0.1).toFixed(2);
+  ui.fxSpecularOn.checked=Math.random()>0.5; ui.fxSpecSize.value=((Math.random()*40)+10)|0; ui.fxSpecAlpha.value=(Math.random()*0.5+0.2).toFixed(2);
+  ui.fxColorCycleOn.checked=Math.random()>0.5; ui.fxColorCycleSpeed.value=(Math.random()*1.2+0.2).toFixed(2); ui.fxColorCycleAmt.value=(Math.random()*0.3+0.05).toFixed(2);
+  ui.fxPulseGlowOn.checked=Math.random()>0.5; ui.fxPulseSpeed.value=(Math.random()*2+0.5).toFixed(2);
+  ui.fxWavyOn.checked=Math.random()>0.5; ui.fxWavyAmp.value=(Math.random()*8).toFixed(1); ui.fxWavyFreq.value=(Math.random()*4+0.5).toFixed(1);
+  ui.fxNoiseOn.checked=Math.random()>0.3; ui.fxNoiseAmt.value=(Math.random()*0.3).toFixed(2); ui.fxNoiseScale.value=(Math.random()*4+1).toFixed(1);
+  ui.fxGrainOn.checked=Math.random()>0.3; ui.fxGrainAmt.value=(Math.random()*0.25+0.02).toFixed(2);
+  ui.fxGradOverlayOn.checked=Math.random()>0.4; ui.fxGradType.value=['linear','radial'][(Math.random()*2)|0]; ui.fxGradBlend.value=['overlay','multiply','screen','soft-light'][(Math.random()*4)|0]; ui.fxGradAngle.value=(Math.random()*360)|0; ui.fxGradAlpha.value=(Math.random()*0.4+0.1).toFixed(2);
+
+  draw(); postOverlays();
+}
+
+// initial paint
+setPalette(ui.palette.value); draw(); postOverlays();
+
+// Animation loop
+let last=0; function loop(now){const dt=(now-last)||16; last=now; if(ui.animate.checked){ state.time+=dt/1000; } draw(); postOverlays(); requestAnimationFrame(loop)} requestAnimationFrame(loop);
+</script>
+</body>
+</html>

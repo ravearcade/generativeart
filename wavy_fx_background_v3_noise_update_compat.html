@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Master Grid – Noise Update (Compatibility Build)</title>
+<style>
+  :root{ --bg:#0b0d12; --panel:#121725; --ink:#e6ecff; --muted:#99a7d1; --border:#1f2742; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; display:flex; min-height:100vh}
+  #stage{ position:relative; flex:1 1 auto; min-height:260px; background:#06080f; }
+  #panel{ width:360px; max-width:46vw; flex:0 0 auto; background:var(--panel); border-left:1px solid var(--border); padding:14px; overflow:auto }
+  canvas{display:block; width:100%; height:100%; background:#000}
+  h1{margin:0 0 8px; font-size:16px}
+  h2{margin:14px 0 6px; font-size:13px; color:var(--muted)}
+  .row{display:flex; gap:8px; align-items:center; margin:6px 0}
+  label{width:150px; color:var(--muted); font-size:12px}
+  select,input[type="text"],input[type="number"],input[type="range"]{flex:1; background:#0f1424; color:var(--ink); border:1px solid var(--border); border-radius:9px; padding:6px 8px}
+  input[type="range"]{padding:0}
+  .btn{background:#0f1424; color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:8px 10px; cursor:pointer}
+  .btn:hover{border-color:#2b3760}
+  .two{display:grid; grid-template-columns: 1fr 1fr; gap:8px}
+  .pill{display:inline-block; background:#0e1426; padding:2px 8px; border:1px solid #1b2447; border-radius:999px; margin:2px 6px 6px 0; font-size:12px; color:#cbd4ff}
+  .micro{font-size:11px; color:#7e8ac4}
+  .badge{position:absolute; top:8px; left:8px; background:#0b0d12; border:1px solid #1f2742; padding:4px 8px; border-radius:6px; font-size:12px; opacity:.9}
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div class="badge" id="status">Initializing…</div>
+    <canvas id="cv"></canvas>
+  </div>
+  <aside id="panel">
+    <h1>Master Grid <small style="opacity:.6">Noise Update · Compat</small></h1>
+    <div class="pill">If your canvas is ever blank: turn on Compatibility Mode below.</div>
+    <div class="row">
+      <label><input id="compat" type="checkbox"> Compatibility Mode</label>
+      <button id="force" class="btn">Force Redraw</button>
+    </div>
+
+    <h2>Background</h2>
+    <div class="row"><label><input type="checkbox" id="bgEnabled" checked> Enable Background</label></div>
+    <div class="row"><label>BG Mode</label>
+      <select id="bgMode">
+        <option>Solid</option><option>Soft Gradient</option><option>Angular Gradient</option><option>Vignette</option>
+      </select>
+    </div>
+    <div class="two">
+      <div class="row"><label>Opacity</label><input id="bgOpacity" type="range" min="0" max="1" step="0.01" value="0.9"></div>
+      <div class="row"><label>Intensity</label><input id="bgIntensity" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+    </div>
+
+    <h2>Grid</h2>
+    <div class="row"><label>Mode</label>
+      <select id="gridMode"><option>Square Grid</option><option>Dot Matrix Grid</option><option>Hexagonal Grid</option></select>
+    </div>
+    <div class="row"><label>Cell Size</label><input id="cell" type="range" min="8" max="140" value="44" step="1"></div>
+
+    <h2>Color</h2>
+    <div class="row"><label>Fill Mode</label>
+      <select id="fillMode"><option>Gradient – Linear</option><option>Solid</option><option>Noise – Hue</option></select>
+    </div>
+    <div class="row"><label>Opacity</label><input id="opacity" type="range" min="0" max="1" step="0.01" value="1"></div>
+
+    <h2>Noise</h2>
+    <div class="row"><label>Type</label>
+      <select id="noiseType"><option value="fbm" selected>fBm</option><option value="value">Value</option><option value="ridged">Ridged</option><option value="turbulence">Turbulence</option></select>
+    </div>
+    <div class="two">
+      <div class="row"><label>Scale</label><input id="noiseScale" type="range" min="0.002" max="0.05" step="0.001" value="0.012"></div>
+      <div class="row"><label>Amount</label><input id="noiseAmt" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+    </div>
+
+    <h2>Animation</h2>
+    <div class="row"><label><input id="animate" type="checkbox" checked> Animate</label></div>
+    <div class="row"><label>Speed</label><input id="animSpeed" type="range" min="0" max="2" step="0.01" value="0.7"></div>
+
+    <div class="row" style="gap:8px; margin-top:10px">
+      <button class="btn" id="randomize">Master Randomize</button>
+      <button class="btn" id="export">Export PNG</button>
+    </div>
+  </aside>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const status = document.getElementById('status');
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+
+  const ui = {
+    compat: document.getElementById('compat'),
+    force: document.getElementById('force'),
+    bgEnabled: document.getElementById('bgEnabled'),
+    bgMode: document.getElementById('bgMode'),
+    bgOpacity: document.getElementById('bgOpacity'),
+    bgIntensity: document.getElementById('bgIntensity'),
+    gridMode: document.getElementById('gridMode'),
+    cell: document.getElementById('cell'),
+    fillMode: document.getElementById('fillMode'),
+    opacity: document.getElementById('opacity'),
+    noiseType: document.getElementById('noiseType'),
+    noiseScale: document.getElementById('noiseScale'),
+    noiseAmt: document.getElementById('noiseAmt'),
+    animate: document.getElementById('animate'),
+    animSpeed: document.getElementById('animSpeed'),
+    randomize: document.getElementById('randomize'),
+    export: document.getElementById('export')
+  };
+
+  // Resize to viewport minus sidebar
+  function resize(){
+    const stage = document.getElementById('stage');
+    const r = stage.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(r.width));
+    const h = Math.max(1, Math.floor(r.height));
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+    canvas.width = Math.floor(w*dpr);
+    canvas.height = Math.floor(h*dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', ()=>{ resize(); draw(true); });
+  resize();
+
+  // Simple palette and noise
+  const ramp = ["#00f5d4","#00bbf9","#8338ec","#ff006e","#fb5607"];
+  const lerp=(a,b,t)=>a+(b-a)*t; const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  function hexToRgb(h){h=h.replace('#','');if(h.length===3)h=[h[0]+h[0],h[1]+h[1],h[2]+h[2]].join('');const n=parseInt(h,16);return [(n>>16)&255,(n>>8)&255,n&255]}
+  function mix(c1,c2,t){const a=hexToRgb(c1), b=hexToRgb(c2); return 'rgb('+[0,1,2].map(i=>Math.round(lerp(a[i],b[i],t))).join(',')+')';}
+  function valueNoise(x,y){ const xi=Math.floor(x), yi=Math.floor(y); const xf=x-xi, yf=y-yi;
+    function hash(i,j){ let s=(i*374761393 + j*668265263)>>>0; s=(s^(s>>13))*1274126177>>>0; return (s&0xffff)/0xffff; }
+    const s=xf*xf*(3-2*xf), t=yf*yf*(3-2*yf);
+    const v00=hash(xi,yi), v10=hash(xi+1,yi), v01=hash(xi,yi+1), v11=hash(xi+1,yi+1);
+    return lerp( lerp(v00,v10,s), lerp(v01,v11,s), t );
+  }
+  function fbm(x,y,oct=4){ let a=1,f=1,s=0, n=0; for(let i=0;i<oct;i++){ s+=valueNoise(x*f,y*f)*a; n+=a; a*=0.55; f*=2.0; } return s/n; }
+
+  // Two renderers
+  function drawCompat(first){
+    const w = canvas.width/(window.devicePixelRatio||1);
+    const h = canvas.height/(window.devicePixelRatio||1);
+    ctx.clearRect(0,0,w,h);
+    // Background
+    const g = ctx.createLinearGradient(0,0,w,h);
+    for(let i=0;i<5;i++){ g.addColorStop(i/4, ramp[i]); }
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    // A guaranteed-visible overlay so you instantly see output
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(12,12,180,36);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px ui-sans-serif, system-ui';
+    ctx.fillText(first ? 'Compatibility Mode: First frame' : 'Compatibility Mode', 20, 35);
+
+    // Simple animated dots
+    const cell = parseInt(ui.cell.value,10);
+    for(let y=cell; y<h; y+=cell*1.2){
+      for(let x=cell; x<w; x+=cell*1.2){
+        const n = fbm(x*0.01 + t*0.2, y*0.01 + 13.7, 3);
+        const cTi = clamp(n,0,1);
+        const ci = Math.floor(cTi*(ramp.length-1));
+        ctx.fillStyle = mix(ramp[ci], ramp[Math.min(ci+1,ramp.length-1)], cTi);
+        ctx.beginPath(); ctx.arc(x,y, lerp(3,10,n), 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  function drawFull(){
+    const w = canvas.width/(window.devicePixelRatio||1);
+    const h = canvas.height/(window.devicePixelRatio||1);
+    ctx.clearRect(0,0,w,h);
+    // Background (soft gradient)
+    const g = ctx.createLinearGradient(0,0,w,h);
+    for(let i=0;i<5;i++){ g.addColorStop(i/4, ramp[i]); }
+    ctx.globalAlpha = parseFloat(ui.bgOpacity.value);
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha = parseFloat(ui.opacity.value);
+
+    // Grid (safe version)
+    const cell = parseInt(ui.cell.value,10);
+    const cols = Math.max(1, Math.ceil(w/cell));
+    const rows = Math.max(1, Math.ceil(h/cell));
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(25,35,60,0.7)';
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const cx=c*cell+cell*0.5, cy=r*cell+cell*0.5;
+        const n=fbm(cx*parseFloat(ui.noiseScale.value), cy*parseFloat(ui.noiseScale.value)+17.3, 4);
+        const ti = clamp((1-parseFloat(ui.noiseAmt.value))*0.5 + parseFloat(ui.noiseAmt.value)*n, 0, 1);
+        const ci = Math.floor(ti*(ramp.length-1));
+        ctx.fillStyle = mix(ramp[ci], ramp[Math.min(ci+1,ramp.length-1)], ti);
+        const rad = 0.35*cell* (0.7 + 0.6*n);
+        ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+
+  // Animation
+  let last=0, t=0;
+  function frame(now){
+    const dt = (now-last)||16; last=now;
+    if(ui.animate.checked) t += dt/1000 * parseFloat(ui.animSpeed.value);
+    try{
+      if(ui.compat.checked) drawCompat(false); else drawFull();
+      status.textContent = ui.compat.checked ? 'Compatibility Mode (on)' : 'Full Renderer';
+    }catch(e){
+      status.textContent = 'Error: ' + e.message;
+      // As a final fallback, draw one compat frame
+      drawCompat(false);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // First definite paint (even before RAF)
+  try{ drawCompat(true); } catch(e) { status.textContent='Init error: '+e.message; }
+  requestAnimationFrame(frame);
+
+  // Events
+  ui.force.addEventListener('click', ()=>{ resize(); (ui.compat.checked?drawCompat(true):drawFull()); });
+  ['bgEnabled','bgMode','bgOpacity','bgIntensity','gridMode','cell','fillMode','opacity','noiseType','noiseScale','noiseAmt','animate','animSpeed','compat'].forEach(id=>{
+    const el = ui[id]; if(!el) return;
+    el.addEventListener('input', ()=>{ (ui.compat.checked?drawCompat(false):drawFull()); });
+  });
+
+  ui.randomize.addEventListener('click', ()=>{
+    ui.cell.value = Math.round(12+Math.random()*96);
+    ui.noiseScale.value = (0.005 + Math.random()*0.04).toFixed(3);
+    ui.noiseAmt.value = Math.random().toFixed(2);
+    (ui.compat.checked?drawCompat(false):drawFull());
+  });
+
+  ui.export.addEventListener('click', ()=>{
+    const a=document.createElement('a'); a.download='grid-compat.png'; a.href=canvas.toDataURL('image/png'); a.click();
+  });
+
+});
+</script>
+</body>
+</html>

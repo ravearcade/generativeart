@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Master Grid Interface — Runnable 1‑File</title>
+<style>
+  :root{--bg:#0a0a0a;--fg:#e7e7e7;--panel:#121212;--accent:#6aa6ff;--muted:#888}
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  body{display:grid;grid-template-columns:1fr 360px;background:#000;color:var(--fg);font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  #wrap{position:relative;display:flex;align-items:center;justify-content:center}
+  canvas{width:100%;height:100%;display:block;background:#000}
+  #ui{height:100vh;overflow:auto;background:var(--panel);border-left:1px solid #1c1c1c;padding:14px}
+  h2{margin:10px 0 6px;font-size:15px} h1{font-size:16px;margin:0 0 6px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .row>label{flex:1;color:var(--muted)} .row>input[type="range"]{flex:2}
+  .row select,.row input[type="number"],.row input[type="checkbox"],.btn{accent-color:var(--accent)}
+  .btn{background:#1b1b1b;border:1px solid #2b2b2b;color:#eaeaea;border-radius:8px;padding:6px 10px;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .toolbar{display:flex;gap:8px;position:absolute;left:12px;top:12px;z-index:2}
+  .pill{background:#101010;border:1px solid #262626;border-radius:999px;padding:6px 10px;color:#ddd}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid #2c2c2c;border-radius:6px;padding:2px 6px;background:#141414}
+  footer{color:#aaa;font-size:12px;margin-top:10px}
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="toolbar">
+      <span class="pill">Fullscreen: <span class="kbd">F</span></span>
+      <span class="pill">Master Randomize: <span class="kbd">A</span>/<span class="kbd">0</span></span>
+    </div>
+    <canvas id="c"></canvas>
+  </div>
+  <aside id="ui">
+    <h1>Master Grid Interface</h1>
+    <div class="row"><button id="btnMaster" class="btn">🎲 Master Randomize (A/0)</button><button id="btnPause" class="btn">⏸ Pause</button></div>
+
+    <h2>Grid</h2>
+    <div class="row"><label>Mode</label>
+      <select id="gridMode"></select>
+    </div>
+    <div class="row"><label>Cell</label><input id="cell" type="range" min="8" max="160" step="1" value="48"></div>
+    <div class="row"><label>Stroke</label><input id="strokeW" type="range" min="0" max="4" step="0.1" value="1"></div>
+    <div class="row"><label>Round</label><input id="round" type="range" min="0" max="0.5" step="0.01" value="0.1"></div>
+    <div class="row"><label>Jitter</label><input id="jitter" type="range" min="0" max="1" step="0.01" value="0.1"></div>
+    <div class="row"><label>Rotate</label><input id="rot" type="range" min="-45" max="45" step="1" value="0"></div>
+    <div class="row"><label>Draw Lines</label><input id="drawLines" type="checkbox" checked></div>
+    <div class="row"><button id="randGrid" class="btn">🎲 Randomize Grid (1)</button></div>
+
+    <h2>Deform</h2>
+    <div class="row"><label>Wave</label><input id="wave" type="range" min="0" max="1.5" step="0.01" value="0.3"></div>
+    <div class="row"><label>Wave Freq</label><input id="waveFreq" type="range" min="0" max="6" step="0.01" value="1.7"></div>
+    <div class="row"><label>Ripple</label><input id="ripple" type="range" min="0" max="1.5" step="0.01" value="0.2"></div>
+    <div class="row"><label>Twist</label><input id="twist" type="range" min="-2" max="2" step="0.01" value="0"></div>
+    <div class="row"><label>Shear</label><input id="shear" type="range" min="-1" max="1" step="0.01" value="0"></div>
+    <div class="row"><label>Perspective</label><input id="persp" type="range" min="0" max="1" step="0.01" value="0"></div>
+    <div class="row"><button id="randDeform" class="btn">🎲 Randomize Deform (2)</button></div>
+
+    <h2>Color</h2>
+    <div class="row"><label>Fill Mode</label>
+      <select id="fillMode"></select>
+    </div>
+    <div class="row"><label>Palette</label>
+      <select id="palette"></select>
+    </div>
+    <div class="row"><label>Opacity</label><input id="opacity" type="range" min="0.2" max="1" step="0.01" value="0.95"></div>
+    <div class="row"><label>Lock Palette</label><input id="lockPalette" type="checkbox"></div>
+    <div class="row"><button id="randColor" class="btn">🎲 Randomize Color (3)</button></div>
+
+    <h2>Gradient BG</h2>
+    <div class="row"><label>Type</label>
+      <select id="gradType">
+        <option>linear</option><option>radial</option><option>angular</option>
+      </select>
+    </div>
+    <div class="row"><label>Angle</label><input id="angle" type="range" min="0" max="360" step="1" value="30"></div>
+    <div class="row"><label>Spread</label><input id="spread" type="range" min="0.2" max="4" step="0.01" value="1.6"></div>
+    <div class="row"><button id="randGradient" class="btn">🎲 Randomize Gradient (4)</button></div>
+
+    <h2>Noise</h2>
+    <div class="row"><label>Scale</label><input id="noiseScale" type="range" min="0.002" max="0.06" step="0.001" value="0.01"></div>
+    <div class="row"><label>Amount</label><input id="noiseAmt" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+    <div class="row"><label>Speed</label><input id="noiseSpeed" type="range" min="0" max="2" step="0.01" value="0.5"></div>
+    <div class="row"><button id="randNoise" class="btn">🎲 Randomize Noise (5)</button></div>
+
+    <h2>Animation</h2>
+    <div class="row"><label>Animate</label><input id="animate" type="checkbox" checked></div>
+    <div class="row"><label>Speed</label><input id="animSpeed" type="range" min="0.1" max="2" step="0.01" value="0.8"></div>
+    <div class="row"><label>Hue Cycle</label><input id="hueCycle" type="checkbox" checked></div>
+    <div class="row"><button id="randAnim" class="btn">🎲 Randomize Animation (6)</button></div>
+
+    <footer>
+      Keys: <span class="kbd">1</span>.. <span class="kbd">6</span> per‑module • <span class="kbd">0</span>/<span class="kbd">A</span> master • <span class="kbd">F</span> fullscreen
+    </footer>
+  </aside>
+
+<script>
+// ===== Utilities
+const pick = arr => arr[(Math.random()*arr.length)|0];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+// Simple RNG perlin-ish noise
+function makeNoise(){
+  const p=new Uint8Array(512); for(let i=0;i<256;i++) p[i]=i; for(let i=255;i>0;i--){const j=(Math.random()*(i+1))|0; [p[i],p[j]]=[p[j],p[i]];} for(let i=0;i<256;i++) p[i+256]=p[i];
+  const fade=t=>t*t*t*(t*(t*6-15)+10), lerp=(a,b,t)=>a+(b-a)*t, grad=(h,x,y)=>((h&1)?-x:x)+((h&2)?-y:y);
+  return (x,y)=>{
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255; x-=Math.floor(x); y-=Math.floor(y);
+    const u=fade(x), v=fade(y);
+    const aa=p[p[X]+Y], ab=p[p[X]+Y+1], ba=p[p[X+1]+Y], bb=p[p[X+1]+Y+1];
+    return lerp(lerp(grad(aa,x,y), grad(ba,x-1,y), u), lerp(grad(ab,x,y-1), grad(bb,x-1,y-1), u), v)*0.5+0.5;
+  }
+}
+const noise2D = makeNoise();
+
+// ===== Presets
+const GRID_MODES = [
+  'Squares','Diamonds','Hex Centers','Weave','Truchet','Circles','Triangles','Rings','Spirals','Checker'
+];
+const FILL_MODES = ['flat','striped','gradient','alt-cells','noise-hatch'];
+const PRESET_PALETTES = {
+  Neon:['#46f','#0ff','#fff','#f0f','#ff0'],
+  Sunset:['#1b1a33','#ff6b6b','#ffa94d','#ffd43b','#fff3bf'],
+  Forest:['#0b1d12','#1e5631','#4e944f','#83c67a','#cbe896'],
+  Mono:['#111','#333','#777','#aaa','#eee'],
+  Ocean:['#001219','#005f73','#0a9396','#94d2bd','#e9d8a6'],
+  Candy:['#222','#ff4d6d','#f9c74f','#90be6d','#43aa8b'],
+  Pastel:['#222','#cdb4db','#ffc8dd','#ffafcc','#bde0fe']
+};
+
+// ramp helper
+class Ramp{constructor(cs){this.setColors(cs||PRESET_PALETTES.Neon)} setColors(cs){this.cs=cs}
+  at(t){const n=this.cs.length-1, x=clamp(t,0,1)*n; const i=Math.floor(x), f=x-i; const a=this.cs[i], b=this.cs[Math.min(i+1,n)];
+    const ca=parseColor(a), cb=parseColor(b); const r=mix(ca,cb,f); return `rgb(${r[0]|0},${r[1]|0},${r[2]|0})`;}
+}
+function parseColor(hex){hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(s=>s+s).join(''); const v=parseInt(hex,16); return [(v>>16)&255,(v>>8)&255,v&255]}
+function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]}
+
+// ===== State
+const ui = Object.fromEntries(['gridMode','cell','strokeW','round','jitter','rot','drawLines','wave','waveFreq','ripple','twist','shear','persp','fillMode','palette','opacity','lockPalette','gradType','angle','spread','noiseScale','noiseAmt','noiseSpeed','animate','animSpeed','hueCycle','btnMaster','btnPause','randGrid','randDeform','randColor','randGradient','randNoise','randAnim'].map(id=>[id,document.getElementById(id)]));
+
+// populate selects
+GRID_MODES.forEach(m=>{const o=document.createElement('option');o.textContent=m;ui.gridMode.appendChild(o)});
+FILL_MODES.forEach(m=>{const o=document.createElement('option');o.textContent=m;ui.fillMode.appendChild(o)});
+Object.keys(PRESET_PALETTES).forEach(k=>{const o=document.createElement('option');o.textContent=k;ui.palette.appendChild(o)});
+ui.gridMode.value='Squares'; ui.fillMode.value='flat'; ui.palette.value='Neon';
+
+const state={time:0, playing:true, ramp:new Ramp(PRESET_PALETTES[ui.palette.value])};
+
+// ===== Drawing
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+function resize(){
+  const dpr=window.devicePixelRatio||1; canvas.width=canvas.clientWidth*dpr; canvas.height=canvas.clientHeight*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',()=>{resize(); draw()}); resize();
+
+function backgroundGradient(){
+  const w=canvas.width/ (window.devicePixelRatio||1), h=canvas.height/(window.devicePixelRatio||1);
+  let g; const t=state.time*0.05;
+  const c1=state.ramp.at( (Math.sin(t)+1)/2 ), c2=state.ramp.at( (Math.cos(t*0.7)+1)/2 );
+  if(ui.gradType.value==='radial'){
+    g=ctx.createRadialGradient(w*0.5,h*0.5,0,w*0.5,h*0.5,Math.max(w,h)*ui.spread.value);
+  }else if(ui.gradType.value==='angular'){
+    // approximate with linear changing angle
+    const ang=(+ui.angle.value||0)*Math.PI/180; const x=Math.cos(ang)*w, y=Math.sin(ang)*h; g=ctx.createLinearGradient(0,0,x,y);
+  }else{
+    const ang=(+ui.angle.value||0)*Math.PI/180; const x=Math.cos(ang)*w, y=Math.sin(ang)*h; g=ctx.createLinearGradient(0,0,x,y);
+  }
+  g.addColorStop(0,c1); g.addColorStop(1,c2);
+  ctx.fillStyle=g; ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+}
+
+function applyDeform(x,y,w,h){
+  const t=state.time*0.001*+ui.animSpeed.value;
+  const wave = +ui.wave.value * Math.sin((x+y)*0.01*+ui.waveFreq.value + t*6.28);
+  const rip = +ui.ripple.value * Math.sin(Math.hypot(x-canvas.clientWidth/2,y-canvas.clientHeight/2)*0.02 - t*8.0);
+  const dx = wave + rip;
+  const ty = y + dx*8;
+  const twist = +ui.twist.value * 0.02, shear=+ui.shear.value*0.2, persp=+ui.persp.value*0.002;
+  const cx = x + w*0.5, cy= ty + h*0.5; const rx = (cx - canvas.clientWidth/2), ry = (cy - canvas.clientHeight/2);
+  const px = cx + ry*shear; const py = cy + rx*twist + (ry*ry)*persp;
+  return {x:px - w*0.5, y:py - h*0.5};
+}
+
+function drawCell(x,y,s,fill,stroke){
+  const r = +ui.round.value * s*0.5;
+  ctx.beginPath();
+  const corners=[
+    [x+r,y],[x+s-r,y],[x+s,y+r],[x+s,y+s-r],[x+s-r,y+s],[x+r,y+s],[x,y+s-r],[x,y+r]
+  ];
+  ctx.moveTo(corners[0][0],corners[0][1]);
+  for(let i=1;i<corners.length;i++) ctx.lineTo(corners[i][0],corners[i][1]);
+  ctx.closePath();
+  if(fill){ctx.globalAlpha=+ui.opacity.value; ctx.fillStyle=fill; ctx.fill();}
+  if(ui.drawLines.checked){ctx.globalAlpha=1; ctx.lineWidth=+ui.strokeW.value; ctx.strokeStyle=stroke||'rgba(255,255,255,0.15)'; ctx.stroke();}
+}
+
+function fillFor(i,j,t){
+  const mode = ui.fillMode.value; const nx=noise2D(i*0.1 + t*ui.noiseSpeed.value, j*0.1 + 37 + t*ui.noiseSpeed.value);
+  const ramp = state.ramp;
+  switch(mode){
+    case 'flat': return ramp.at((i+j+t*0.4)%1);
+    case 'striped': return ramp.at((i*0.1 + t*0.5)%1);
+    case 'gradient': return ramp.at((i+j)/(grid.cols+grid.rows));
+    case 'alt-cells': return ramp.at(((i+j)&1)?0.2:0.8);
+    case 'noise-hatch': return ramp.at(nx);
+  }
+}
+
+const grid={cols:0,rows:0};
+function draw(){
+  backgroundGradient();
+  const cell = +ui.cell.value; const rot = +ui.rot.value*Math.PI/180; const jit=+ui.jitter.value;
+  const W=canvas.clientWidth, H=canvas.clientHeight;
+  grid.cols = Math.ceil(W/cell)+2; grid.rows=Math.ceil(H/cell)+2;
+  ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(rot); ctx.translate(-W/2,-H/2);
+
+  const t=state.time*0.001;
+  for(let y=-1; y<grid.rows; y++){
+    for(let x=-1; x<grid.cols; x++){
+      // base position
+      let px = x*cell + (Math.random()-0.5)*cell*jit;
+      let py = y*cell + (Math.random()-0.5)*cell*jit;
+      // switch modes location/shape tweaks
+      const mode = ui.gridMode.value;
+      if(mode==='Diamonds'){ ctx.save(); ctx.translate(px+cell/2,py+cell/2); ctx.rotate(Math.PI/4); ctx.translate(-cell/2,-cell/2); }
+      else if(mode==='Hex Centers'){ px += (y&1? cell*0.5:0); }
+      else if(mode==='Weave'){ if((x+y)%2===0) py+=cell*0.2; else px+=cell*0.2; }
+      else if(mode==='Truchet'){ /* orientation via noise */ }
+
+      const pos = applyDeform(px,py,cell,cell);
+      const fill = fillFor(x,y,t);
+      const stroke = 'rgba(255,255,255,0.15)';
+
+      switch(mode){
+        case 'Circles': ctx.beginPath(); ctx.arc(pos.x+cell/2,pos.y+cell/2,cell*0.45,0,Math.PI*2); ctx.fillStyle=fill; ctx.globalAlpha=+ui.opacity.value; ctx.fill(); if(ui.drawLines.checked){ctx.globalAlpha=1; ctx.lineWidth=+ui.strokeW.value; ctx.strokeStyle=stroke; ctx.stroke();} break;
+        case 'Triangles': ctx.beginPath(); ctx.moveTo(pos.x+cell/2,pos.y); ctx.lineTo(pos.x+cell,pos.y+cell); ctx.lineTo(pos.x,pos.y+cell); ctx.closePath(); ctx.fillStyle=fill; ctx.globalAlpha=+ui.opacity.value; ctx.fill(); if(ui.drawLines.checked){ctx.globalAlpha=1; ctx.lineWidth=+ui.strokeW.value; ctx.strokeStyle=stroke; ctx.stroke();} break;
+        case 'Rings': ctx.beginPath(); ctx.arc(pos.x+cell/2,pos.y+cell/2,cell*0.46,0,Math.PI*2); ctx.lineWidth=+ui.strokeW.value+1.5; ctx.strokeStyle=fill; ctx.stroke(); break;
+        case 'Spirals': {
+          const cx=pos.x+cell/2, cy=pos.y+cell/2; ctx.beginPath(); let a=0; const R=cell*0.45; for(let k=0;k<40;k++){const r=R*k/40; const tx=cx+Math.cos(a)*r, ty=cy+Math.sin(a)*r; if(k===0) ctx.moveTo(tx,ty); else ctx.lineTo(tx,ty); a+=0.35;} ctx.strokeStyle=fill; ctx.lineWidth=+ui.strokeW.value+0.5; ctx.stroke(); break; }
+        case 'Checker':
+        case 'Squares':
+        default: drawCell(pos.x,pos.y,cell,fill,stroke); break;
+      }
+      if(mode==='Diamonds') ctx.restore();
+    }
+  }
+  ctx.restore();
+
+  // screen‑space noise overlay
+  if(+ui.noiseAmt.value>0){
+    const ns=+ui.noiseScale.value; const amt=+ui.noiseAmt.value; const w=canvas.clientWidth, h=canvas.clientHeight; const step=4;
+    const img = ctx.getImageData(0,0,w,h); const d=img.data; const t2=state.time*0.0003*+ui.noiseSpeed.value;
+    for(let y=0;y<h;y+=step){
+      for(let x=0;x<w;x+=step){
+        const n=noise2D(x*ns + t2, y*ns + 100 + t2); const v=(n-0.5)*2*255*amt; const index=(y*w + x)*4;
+        d[index] = clamp(d[index]+v,0,255);
+        d[index+1] = clamp(d[index+1]+v,0,255);
+        d[index+2] = clamp(d[index+2]+v,0,255);
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+}
+
+function tick(ts){ if(prevTS===null) prevTS=ts; const dt=ts-prevTS; prevTS=ts; if(state.playing && ui.animate.checked){ state.time += dt; if(ui.hueCycle.checked){
+    document.body.style.filter=`hue-rotate(${(state.time*0.02)%360}deg)`;
+  } else { document.body.style.filter='none'; }
+  draw(); }
+  requestAnimationFrame(tick);
+}
+let prevTS=null; draw(); requestAnimationFrame(tick);
+
+// ===== Randomizers
+function rand(min,max,step=0){ const v=Math.random()*(max-min)+min; return step? (Math.round(v/step)*step): v; }
+function randomizeGrid(){ ui.gridMode.value = pick(GRID_MODES); ui.cell.value=(rand(12,120)|0); ui.strokeW.value=rand(0,2.5,0.1).toFixed(1); ui.round.value=rand(0,0.5,0.01).toFixed(2); ui.jitter.value=rand(0,0.6,0.01).toFixed(2); ui.rot.value=(rand(-30,30)|0); ui.drawLines.checked=Math.random()>0.35; draw(); }
+function randomizeDeform(){ ui.wave.value=rand(0,1.2,0.01).toFixed(2); ui.waveFreq.value=rand(0,6,0.01).toFixed(2); ui.ripple.value=rand(0,1.2,0.01).toFixed(2); ui.twist.value=rand(-2,2,0.01).toFixed(2); ui.shear.value=rand(-1,1,0.01).toFixed(2); ui.persp.value=rand(0,1,0.01).toFixed(2); draw(); }
+function randomizeColor(){ ui.fillMode.value=pick(FILL_MODES); if(!ui.lockPalette.checked){ const keys=Object.keys(PRESET_PALETTES); const k=pick(keys); ui.palette.value=k; state.ramp.setColors(PRESET_PALETTES[k]); } ui.opacity.value=rand(0.5,1,0.01).toFixed(2); draw(); }
+function randomizeGradient(){ ui.gradType.value=pick(['linear','radial','angular']); ui.angle.value=(rand(0,360)|0); ui.spread.value=rand(0.3,3,0.01).toFixed(2); draw(); }
+function randomizeNoise(){ ui.noiseScale.value=rand(0.003,0.04,0.001).toFixed(3); ui.noiseAmt.value=rand(0,0.8,0.01).toFixed(2); ui.noiseSpeed.value=rand(0,2,0.01).toFixed(2); draw(); }
+function randomizeAnimation(){ ui.animate.checked=true; ui.animSpeed.value=rand(0.2,1.6,0.01).toFixed(2); ui.hueCycle.checked=Math.random()>0.5; draw(); }
+function masterRandomize(){ randomizeGrid(); randomizeDeform(); randomizeColor(); randomizeGradient(); randomizeNoise(); randomizeAnimation(); draw(); }
+
+// bind buttons
+ui.randGrid.onclick=randomizeGrid; ui.randDeform.onclick=randomizeDeform; ui.randColor.onclick=randomizeColor; ui.randGradient.onclick=randomizeGradient; ui.randNoise.onclick=randomizeNoise; ui.randAnim.onclick=randomizeAnimation; ui.btnMaster.onclick=masterRandomize; ui.btnPause.onclick=()=>{state.playing=!state.playing; ui.btnPause.textContent=state.playing?'⏸ Pause':'▶️ Play'};
+
+// keyboard
+window.addEventListener('keydown',e=>{
+  if(['0','1','2','3','4','5','6','a','A','f','F'].includes(e.key)) e.preventDefault();
+  switch(e.key){
+    case '1': randomizeGrid(); break;
+    case '2': randomizeDeform(); break;
+    case '3': randomizeColor(); break;
+    case '4': randomizeGradient(); break;
+    case '5': randomizeNoise(); break;
+    case '6': randomizeAnimation(); break;
+    case '0': case 'a': case 'A': masterRandomize(); break;
+    case 'f': case 'F': toggleFullscreen(); break;
+  }
+});
+
+function toggleFullscreen(){
+  const el=document.documentElement; if(!document.fullscreenElement){ el.requestFullscreen?.(); } else { document.exitFullscreen?.(); }
+}
+
+// palette change
+ui.palette.addEventListener('change',()=>{ state.ramp.setColors(PRESET_PALETTES[ui.palette.value]); draw(); });
+['gridMode','cell','strokeW','round','jitter','rot','drawLines','wave','waveFreq','ripple','twist','shear','persp','fillMode','opacity','gradType','angle','spread','noiseScale','noiseAmt','noiseSpeed','animate','animSpeed','hueCycle'].forEach(id=>{
+  ui[id].addEventListener('input',()=>draw());
+});
+
+// first paint visible immediately
+masterRandomize();
+</script>
+</body>
+</html>
