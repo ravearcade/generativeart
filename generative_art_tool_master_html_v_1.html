@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Generative Art Tool — Master</title>
+<style>
+  :root{
+    --bg:#0b0c10;
+    --panel:#121318;
+    --ink:#e6e6e9;
+    --muted:#8a8f98;
+    --accent:#6ee7ff;
+    --accent-2:#c084fc;
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+    --card:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+    overflow:hidden;
+  }
+  .wrap{display:flex; height:100vh; width:100vw;}
+  .stage{flex:1; position:relative;}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block; background:#000;}
+  .panel{
+    width:380px; min-width:320px; max-width:460px;
+    overflow:auto; background:var(--panel); border-left:1px solid var(--border);
+    padding:14px; gap:12px; display:flex; flex-direction:column;
+  }
+  .header{
+    position:sticky; top:0; background:var(--panel); z-index:10; padding-bottom:10px; margin-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  button, select, input[type="number"], input[type="text"], textarea{
+    background:var(--card); color:var(--ink); border:1px solid var(--border);
+    border-radius:10px; padding:8px 10px; outline:none; transition:.2s border-color, .2s box-shadow;
+  }
+  button:hover, select:hover, input:hover, textarea:hover{border-color:var(--border-strong)}
+  button{cursor:pointer}
+  button.primary{background:linear-gradient(135deg, rgba(110,231,255,.15), rgba(192,132,252,.12)); border-color:var(--border-strong)}
+  button.ghost{background:transparent}
+  .section{border:1px solid var(--border); border-radius:var(--radius); padding:12px; background:var(--card)}
+  .section h3{margin:0 0 8px 0; font-size:13px; color:#cfd2da; letter-spacing:.02em}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .grid3{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px}
+  label{font-size:12px; color:var(--muted)}
+  .ctrl{display:flex; flex-direction:column; gap:4px}
+  .small{font-size:12px; color:var(--muted)}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#c7cbda; background:#0f1115; padding:2px 6px; border-radius:6px; border:1px solid var(--border)}
+  .footer{opacity:.75; font-size:12px; padding-top:8px; border-top:1px dashed var(--border)}
+  .hint{color:#9aa1ad}
+  .switch{display:flex; align-items:center; gap:8px}
+  .switch input{width:42px; height:24px; appearance:none; background:#11131a; border:1px solid var(--border); border-radius:24px; position:relative;}
+  .switch input:checked{background:linear-gradient(90deg, rgba(110,231,255,.3), rgba(192,132,252,.25))}
+  .switch input:before{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; background:#e6e6e9; border-radius:50%; transition:left .18s}
+  .switch input:checked:before{left:22px}
+  .bar{height:1px; background:var(--border); margin:2px 0 10px 0}
+  .note{font-size:12px; color:#a5adba}
+  .link{color:#9fe0ff}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stage">
+      <canvas id="c"></canvas>
+    </div>
+    <aside class="panel" id="panel">
+      <div class="header">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <div><strong>Generative Art Tool</strong> <span class="small">— Master</span></div>
+          <div class="row">
+            <button id="exportBtn" title="Export PNG" class="primary">Export PNG</button>
+            <button id="masterRandom" title="Master Randomize (A or 0)">Master 🎲</button>
+          </div>
+        </div>
+        <div class="row small hint" style="margin-top:6px; gap:10px">
+          <div><span class="kbd">A</span> / <span class="kbd">0</span> Master</div>
+          <div><span class="kbd">[</span> <span class="kbd">]</span> Grid Mode</div>
+          <div><span class="kbd">1-7</span> Module Randomizers</div>
+        </div>
+      </div>
+
+      <!-- BACKGROUND MODULE -->
+      <section class="section" id="bgSection">
+        <h3>1) Background</h3>
+        <div class="row" style="justify-content:space-between">
+          <label class="switch"><input type="checkbox" id="bgEnabled" checked><span>Enabled</span></label>
+          <button id="bgRandom">Randomize</button>
+        </div>
+        <div class="bar"></div>
+        <div class="grid2">
+          <div class="ctrl"><label>Mode</label>
+            <select id="bgMode"></select>
+          </div>
+          <div class="ctrl"><label>Palette</label>
+            <select id="bgPalette"></select>
+          </div>
+          <div class="ctrl"><label>Opacity</label>
+            <input type="range" id="bgOpacity" min="0" max="1" step="0.01" value="1"/>
+          </div>
+          <div class="ctrl"><label>Intensity</label>
+            <input type="range" id="bgIntensity" min="0" max="1" step="0.01" value="0.6"/>
+          </div>
+          <div class="ctrl"><label>Pattern Scale</label>
+            <input type="range" id="bgScale" min="0.2" max="5" step="0.01" value="1.0"/>
+          </div>
+          <div class="ctrl"><label>Anim Speed</label>
+            <input type="range" id="bgAnimSpeed" min="0" max="2" step="0.01" value="0.3"/>
+          </div>
+          <div class="ctrl switch"><input type="checkbox" id="bgLinkPalette" checked><span>Link to Color Palette</span></div>
+        </div>
+      </section>
+
+      <!-- GRID MODULE -->
+      <section class="section" id="gridSection">
+        <h3>2) Grid</h3>
+        <div class="row" style="justify-content:space-between">
+          <div class="row" style="gap:6px">
+            <button id="prevGrid">◀</button>
+            <select id="gridMode" style="min-width:200px"></select>
+            <button id="nextGrid">▶</button>
+          </div>
+          <button id="gridRandom">Randomize</button>
+        </div>
+        <div class="bar"></div>
+        <div class="grid2">
+          <div class="ctrl"><label>Cell Size</label>
+            <input type="range" id="cellSize" min="6" max="140" step="1" value="32"/>
+          </div>
+          <div class="ctrl"><label>Stroke</label>
+            <input type="range" id="gridStroke" min="0" max="4" step="0.1" value="0.6"/>
+          </div>
+          <div class="ctrl"><label>Corner Round</label>
+            <input type="range" id="cornerRound" min="0" max="1" step="0.01" value="0.2"/>
+          </div>
+          <div class="ctrl"><label>Jitter</label>
+            <input type="range" id="gridJitter" min="0" max="1" step="0.01" value="0.12"/>
+          </div>
+          <div class="ctrl"><label>Rotation</label>
+            <input type="range" id="gridRotation" min="-180" max="180" step="1" value="0"/>
+          </div>
+          <div class="ctrl switch"><input type="checkbox" id="drawBorders"><span>Draw Cell Borders</span></div>
+        </div>
+      </section>
+
+      <!-- DEFORM MODULE -->
+      <section class="section" id="deformSection">
+        <h3>3) Deform</h3>
+        <div class="row" style="justify-content:space-between">
+          <div class="row small hint">Applied to cell centers</div>
+          <button id="deformRandom">Randomize</button>
+        </div>
+        <div class="bar"></div>
+        <div class="grid3">
+          <div class="ctrl"><label>Wave Amt</label><input type="range" id="defWaveAmt" min="0" max="100" step="1" value="8"></div>
+          <div class="ctrl"><label>Wave Freq</label><input type="range" id="defWaveFreq" min="0" max="0.05" step="0.001" value="0.01"></div>
+          <div class="ctrl"><label>Ripple</label><input type="range" id="defRipple" min="0" max="160" step="1" value="12"></div>
+          <div class="ctrl"><label>Twist</label><input type="range" id="defTwist" min="-0.02" max="0.02" step="0.0005" value="0.002"></div>
+          <div class="ctrl"><label>Shear</label><input type="range" id="defShear" min="-0.8" max="0.8" step="0.01" value="0"></div>
+          <div class="ctrl"><label>Perspective</label><input type="range" id="defPersp" min="-0.9" max="0.9" step="0.01" value="0"></div>
+        </div>
+      </section>
+
+      <!-- COLOR MODULE -->
+      <section class="section" id="colorSection">
+        <h3>4) Color</h3>
+        <div class="row" style="justify-content:space-between">
+          <div class="row small hint">Per-cell fill</div>
+          <button id="colorRandom">Randomize</button>
+        </div>
+        <div class="bar"></div>
+        <div class="grid2">
+          <div class="ctrl"><label>Fill Mode</label><select id="fillMode"></select></div>
+          <div class="ctrl"><label>Palette</label><select id="palette"></select></div>
+          <div class="ctrl"><label>Opacity</label><input id="fillOpacity" type="range" min="0" max="1" step="0.01" value="1"></div>
+          <div class="ctrl switch"><input type="checkbox" id="lockPalette"><span>Lock Palette</span></div>
+        </div>
+        <div class="ctrl"><label>Custom HEX ramp (comma or space separated) — <span class="small">e.g. <em>#0bf, #8ef, #fff</em></span></label>
+          <div class="row"><input type="text" id="customRamp" placeholder="#0ea5e9 #a855f7 #f0abfc" style="flex:1"><button id="applyRamp">Apply</button></div>
+        </div>
+      </section>
+
+      <!-- GRADIENT SUB-CONTROLS -->
+      <section class="section" id="gradSection">
+        <h3>5) Gradient Controls</h3>
+        <div class="row" style="justify-content:space-between"><div class="row small hint">Affects gradient fill modes</div><button id="gradRandom">Randomize</button></div>
+        <div class="bar"></div>
+        <div class="grid3">
+          <div class="ctrl"><label>Type</label><select id="gradType"><option>linear</option><option>radial</option><option>angular</option></select></div>
+          <div class="ctrl"><label>Angle</label><input type="range" id="gradAngle" min="0" max="360" step="1" value="45"></div>
+          <div class="ctrl"><label>Spread</label><input type="range" id="gradSpread" min="0.2" max="2.5" step="0.01" value="1.0"></div>
+        </div>
+      </section>
+
+      <!-- NOISE MODULE -->
+      <section class="section" id="noiseSection">
+        <h3>6) Noise (FBM)</h3>
+        <div class="row" style="justify-content:space-between"><div class="row small hint">Seeded 2D value noise</div><button id="noiseRandom">Randomize</button></div>
+        <div class="bar"></div>
+        <div class="grid3">
+          <div class="ctrl"><label>Scale</label><input type="range" id="noiseScale" min="0.001" max="0.05" step="0.001" value="0.01"></div>
+          <div class="ctrl"><label>Amount</label><input type="range" id="noiseAmt" min="0" max="1" step="0.01" value="0.45"></div>
+          <div class="ctrl"><label>Drift Speed</label><input type="range" id="noiseDrift" min="-0.5" max="0.5" step="0.001" value="0.05"></div>
+          <div class="ctrl"><label>Octaves</label><input type="range" id="noiseOct" min="1" max="6" step="1" value="4"></div>
+          <div class="ctrl"><label>Lacunarity</label><input type="range" id="noiseLac" min="1.2" max="3.0" step="0.01" value="1.9"></div>
+          <div class="ctrl"><label>Gain</label><input type="range" id="noiseGain" min="0.2" max="0.9" step="0.01" value="0.55"></div>
+          <div class="ctrl switch"><input type="checkbox" id="infSize" checked><span>Influence Size</span></div>
+          <div class="ctrl switch"><input type="checkbox" id="infHue" checked><span>Influence Hue</span></div>
+          <div class="ctrl switch"><input type="checkbox" id="infLight"><span>Influence Light</span></div>
+          <div class="ctrl switch" style="grid-column:1/-1"><input type="checkbox" id="posJitter"><span>Position Jitter</span></div>
+        </div>
+      </section>
+
+      <!-- ANIMATION MODULE -->
+      <section class="section" id="animSection">
+        <h3>7) Animation</h3>
+        <div class="row" style="justify-content:space-between"><div class="row small hint">Scene transforms & cycling</div><button id="animRandom">Randomize</button></div>
+        <div class="bar"></div>
+        <div class="grid3">
+          <div class="ctrl switch"><input type="checkbox" id="animate"><span>Animate</span></div>
+          <div class="ctrl"><label>Speed</label><input type="range" id="animSpeed" min="0" max="3" step="0.01" value="1.0"></div>
+          <div class="ctrl"><label>Mode</label><select id="animMode"></select></div>
+          <div class="ctrl"><label>Amplitude</label><input type="range" id="animAmp" min="0" max="1.5" step="0.01" value="0.4"></div>
+          <div class="ctrl"><label>Phase</label><input type="range" id="animPhase" min="0" max="6.283" step="0.001" value="0"></div>
+          <div class="ctrl switch"><input type="checkbox" id="hueCycle"><span>Hue Cycle</span></div>
+          <div class="ctrl switch"><input type="checkbox" id="colorGuard" checked><span>Color Bias Guard</span></div>
+        </div>
+      </section>
+
+      <div class="footer small">
+        If the canvas ever appears blank, click <strong>Master</strong> or reduce <em>Cell Size</em>. DPR-aware resize is automatic.
+        <br/>Made with ❤️ — No external libraries.
+      </div>
+    </aside>
+  </div>
+
+<script>
+// =============================
+// Utilities & Core Structures
+// =============================
+const $ = (q) => document.querySelector(q);
+const $$ = (q) => Array.from(document.querySelectorAll(q));
+const clamp = (v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const TAU = Math.PI*2;
+
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296}};
+function hash2D(x,y){ // integer hash -> [0,1)
+  let h = x*374761393 + y*668265263; h=(h^(h>>13))*1274126177; h^=h>>16; return (h>>>0)/4294967296;
+}
+function smoothstep(t){return t*t*(3-2*t)}
+function valueNoise2D(x,y){
+  const xi=Math.floor(x), yi=Math.floor(y);
+  const xf=x-xi, yf=y-yi;
+  const v00=hash2D(xi,yi), v10=hash2D(xi+1,yi), v01=hash2D(xi,yi+1), v11=hash2D(xi+1,yi+1);
+  const u=smoothstep(xf), v=smoothstep(yf);
+  return lerp(lerp(v00,v10,u), lerp(v01,v11,u), v);
+}
+function fbm2D(x,y,o=4,lac=2.0,g=0.5){
+  let amp=1, freq=1, sum=0, norm=0;
+  for(let i=0;i<o;i++){
+    sum += valueNoise2D(x*freq,y*freq)*amp;
+    norm += amp;
+    amp *= g; freq *= lac;
+  }
+  return sum/norm;
+}
+function hexToRgb(h){h=h.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+  const num=parseInt(h,16); return {r:(num>>16)&255, g:(num>>8)&255, b:num&255};
+}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('')}
+function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;const max=Math.max(r,g,b),min=Math.min(r,g,b);let h,s,l=(max+min)/2; if(max===min){h=s=0;}else{const d=max-min; s=l>0.5? d/(2-max-min) : d/(max+min); switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;} h/=6;} return {h,s,l};}
+function hslToRgb(h,s,l){let r,g,b; if(s===0){r=g=b=l;} else {const hue2rgb=(p,q,t)=>{if(t<0) t+=1; if(t>1) t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3 - t)*6; return p;}; const q=l<.5? l*(1+s):l+s-l*s; const p=2*l-q; r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);} return {r:Math.round(r*255), g:Math.round(g*255), b:Math.round(b*255)};}
+function mixHex(a,b,t){const A=hexToRgb(a), B=hexToRgb(b); const r=Math.round(lerp(A.r,B.r,t)), g=Math.round(lerp(A.g,B.g,t)), bch=Math.round(lerp(A.b,B.b,t)); return rgbToHex(r,g,bch)}
+
+// Palette sampling: ramp is array of hex; t in [0,1]
+function sampleRamp(ramp, t){ if(!ramp || ramp.length===0) return '#fff'; if(ramp.length===1) return ramp[0]; const u=clamp(t,0,1)*(ramp.length-1); const i=Math.floor(u), f=u-i; return mixHex(ramp[i], ramp[Math.min(i+1,ramp.length-1)], f); }
+
+// =============================
+// Palettes (20+)
+// =============================
+const PALETTES = {
+  "Neon Ice": ["#0ea5e9","#60a5fa","#c084fc","#f0abfc","#ffffff"],
+  "Sunset Soda": ["#ff7b00","#ffbe0b","#fb5607","#ff006e","#8338ec"],
+  "Aurora": ["#0bd1ff","#4ade80","#fbbf24","#f472b6","#94a3b8"],
+  "Cyber Grape": ["#0f172a","#312e81","#7c3aed","#e879f9","#f5d0fe"],
+  "Midnight Pop": ["#0b132b","#1c2541","#3a506b","#5bc0be","#c5f6fa"],
+  "Miami": ["#ff6b6b","#ffd93d","#6bcB77","#4d96ff","#b067ff"],
+  "Glacier": ["#0ea5e9","#22d3ee","#a5f3fc","#e2e8f0","#94a3b8"],
+  "Desert": ["#a16207","#eab308","#fde68a","#f97316","#7c2d12"],
+  "Candy": ["#f43f5e","#fb7185","#fda4af","#fdba74","#fef08a"],
+  "Forest": ["#064e3b","#059669","#34d399","#a7f3d0","#ecfeff"],
+  "Ocean": ["#082f49","#075985","#0ea5e9","#38bdf8","#bae6fd"],
+  "Mono": ["#0b0c10","#2b2f36","#6b7280","#cbd5e1","#ffffff"],
+  "Rose Gold": ["#4a1d1f","#7a2e2c","#b85c38","#ffd6ba","#fff1e6"],
+  "Plasma": ["#0b1354","#1d2b7b","#7b2cbf","#e85d04","#f48c06"],
+  "Heat": ["#03045e","#0077b6","#00b4d8","#90e0ef","#caf0f8"],
+  "Jelly": ["#1b998b","#2d3047","#fffd82","#ff9b71","#e84855"],
+  "Sakura": ["#1f2937","#4b5563","#f472b6","#f9a8d4","#fce7f3"],
+  "Lava": ["#200122","#6f0000","#c31432","#ef3b36","#f5af19"],
+  "Citrus": ["#004b23","#006400","#38b000","#ccff33","#efff99"],
+  "Steel": ["#0f172a","#1f2937","#334155","#64748b","#e2e8f0"],
+  "Pastel Sky": ["#a7f3d0","#93c5fd","#c4b5fd","#fbcfe8","#fde68a"],
+  "Mocha": ["#3e2723","#5d4037","#795548","#a1887f","#d7ccc8"],
+  "Klein": ["#002fa7","#1e90ff","#7aa2f7","#a6adbb","#ffffff"],
+  "Grayscale": ["#000000","#333333","#777777","#bbbbbb","#ffffff"],
+  "Pride": ["#e50000","#ff8d00","#ffee00","#028121","#004cff","#770088"],
+  "Ice Pop": ["#00f5d4","#00bbf9","#9b5de5","#f15bb5","#fee440"],
+  "Earth": ["#2d3142","#4f5d75","#bfc0c0","#ef8354","#fefffe"],
+};
+
+// Fill modes
+const FILL_MODES = [
+  'Solid','Alternating','Gradient Linear','Gradient Radial','Gradient Angular',
+  'Noise Hue','Noise Brightness','Stripes','Halftone','Rings'
+];
+
+// Background modes
+const BG_MODES = [
+  'Solid','Pure Black','Pure White','Soft Gradient','Angular Gradient','Vignette','Noise Grain',
+  'Paper Grain','Geometric Tri','Crosshatch','Dots','Diagonal Weave','Aurora Flow','Flow Noise',
+  'Scanlines','Orbiting Blobs','Parallax Stars','CRT Glow'
+];
+
+// Grid modes — 50 labels; several are fast approximations or parameterized variants
+const GRID_MODES = [
+  'Square','Rect','Tri','Hex','Diamond','Radial','Polar','Spiral','Voronoi (approx)','Delaunay (approx)',
+  'Wave-Deformed','Noise-Warped','Ripple','Twist','Sheared','Fractal','Isometric','Cylindrical','Spherical','Tiling',
+  'Checkerboard','Lattice','Dot Matrix','Organic','Adaptive','Cairo Pentagonal (approx)','Octagon-Square','Rhombille',
+  'Penrose (approx)','Quasi-Crystal (approx)','Perspective','Fish-Eye','Fractal Spiral','Wave-Bend','Swirl','Honeycomb Rings',
+  'Cross-Hatch','Dot-Lattice','Checker-Warp','Circle-Packing (approx)','Sliding','Shattered','Orbit','Ripple-Propagated',
+  'Jitter','Recursive Subdivision','Hilbert Curve (approx)','Hex-Pixel','Randomized','Adaptive Heatmap'
+];
+
+const ANIM_MODES = ['None','Pulse','Wave Sweep','Orbit','Rotate Scene','Drift','Shake','Zoom','Cell Ripple'];
+
+// =============================
+// Global State
+// =============================
+const State = {
+  seed: Math.floor(Math.random()*1e9),
+  time: 0,
+  dpr: Math.max(1, window.devicePixelRatio || 1),
+  canvas: null, ctx: null, w:0, h:0,
+  // background
+  bg: { enabled:true, mode:'Soft Gradient', linkPalette:true, palette:'Neon Ice', opacity:1, intensity:0.6, scale:1.0, animSpeed:0.3 },
+  // grid
+  grid: { mode:'Square', cellSize:32, stroke:0.6, corner:0.2, jitter:0.12, rotation:0, borders:false },
+  // deform
+  deform: { waveAmt:8, waveFreq:0.01, ripple:12, twist:0.002, shear:0.0, persp:0.0 },
+  // color
+  color: { mode:'Noise Hue', opacity:1, palette:'Neon Ice', lockPalette:false, custom:null },
+  // gradient
+  grad: { type:'linear', angle:45, spread:1.0 },
+  // noise
+  noise: { scale:0.01, amount:0.45, drift:0.05, oct:4, lac:1.9, gain:0.55, infSize:true, infHue:true, infLight:false, posJitter:false },
+  // animation
+  anim: { enabled:true, speed:1.0, mode:'Drift', amp:0.4, phase:0, hueCycle:false, colorGuard:true },
+  // caches
+  gradCache: null,
+};
+
+let rng = mulberry32(State.seed);
+
+// =============================
+// Canvas Setup & Resize (DPR-aware)
+// =============================
+const canvas = State.canvas = document.getElementById('c');
+const ctx = State.ctx = canvas.getContext('2d');
+function resize(){
+  const dpr = State.dpr = Math.max(1, window.devicePixelRatio || 1);
+  const rect = canvas.getBoundingClientRect();
+  State.w = Math.max(16, Math.floor(rect.width * dpr));
+  State.h = Math.max(16, Math.floor(rect.height * dpr));
+  canvas.width = State.w; canvas.height = State.h;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.imageSmoothingEnabled = true;
+}
+new ResizeObserver(()=>resize()).observe(canvas);
+resize();
+
+// =============================
+// UI Wiring
+// =============================
+function populateSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.textContent=v; o.value=v; sel.appendChild(o); }); }
+function populatePalettes(sel){ sel.innerHTML=''; Object.keys(PALETTES).forEach(k=>{const o=document.createElement('option'); o.textContent=k; o.value=k; sel.appendChild(o);}); }
+
+// Background UI
+populateSelect($('#bgMode'), BG_MODES);
+populatePalettes($('#bgPalette'));
+$('#bgEnabled').checked = State.bg.enabled;
+$('#bgMode').value = State.bg.mode; $('#bgPalette').value = State.bg.palette;
+$('#bgOpacity').value = State.bg.opacity; $('#bgIntensity').value = State.bg.intensity;
+$('#bgScale').value = State.bg.scale; $('#bgAnimSpeed').value = State.bg.animSpeed;
+$('#bgLinkPalette').checked = State.bg.linkPalette;
+
+$('#bgEnabled').addEventListener('change',e=>State.bg.enabled=e.target.checked);
+$('#bgMode').addEventListener('change',e=>State.bg.mode=e.target.value);
+$('#bgPalette').addEventListener('change',e=>State.bg.palette=e.target.value);
+$('#bgOpacity').addEventListener('input',e=>State.bg.opacity=parseFloat(e.target.value));
+$('#bgIntensity').addEventListener('input',e=>State.bg.intensity=parseFloat(e.target.value));
+$('#bgScale').addEventListener('input',e=>State.bg.scale=parseFloat(e.target.value));
+$('#bgAnimSpeed').addEventListener('input',e=>State.bg.animSpeed=parseFloat(e.target.value));
+$('#bgLinkPalette').addEventListener('change',e=>State.bg.linkPalette=e.target.checked);
+$('#bgRandom').addEventListener('click',()=>randomizeBG());
+
+// Grid UI
+populateSelect($('#gridMode'), GRID_MODES);
+$('#gridMode').value = State.grid.mode;
+$('#cellSize').value = State.grid.cellSize;
+$('#gridStroke').value = State.grid.stroke;
+$('#cornerRound').value = State.grid.corner;
+$('#gridJitter').value = State.grid.jitter;
+$('#gridRotation').value = State.grid.rotation;
+$('#drawBorders').checked = State.grid.borders;
+
+$('#gridMode').addEventListener('change',e=>State.grid.mode=e.target.value);
+$('#cellSize').addEventListener('input',e=>State.grid.cellSize=parseInt(e.target.value));
+$('#gridStroke').addEventListener('input',e=>State.grid.stroke=parseFloat(e.target.value));
+$('#cornerRound').addEventListener('input',e=>State.grid.corner=parseFloat(e.target.value));
+$('#gridJitter').addEventListener('input',e=>State.grid.jitter=parseFloat(e.target.value));
+$('#gridRotation').addEventListener('input',e=>State.grid.rotation=parseFloat(e.target.value));
+$('#drawBorders').addEventListener('change',e=>State.grid.borders=e.target.checked);
+$('#gridRandom').addEventListener('click',()=>randomizeGrid());
+$('#prevGrid').addEventListener('click',()=>cycleGrid(-1));
+$('#nextGrid').addEventListener('click',()=>cycleGrid(+1));
+
+function cycleGrid(dir){ const i=GRID_MODES.indexOf(State.grid.mode); let ni=(i+dir+GRID_MODES.length)%GRID_MODES.length; State.grid.mode = GRID_MODES[ni]; $('#gridMode').value=State.grid.mode; }
+
+// Deform UI
+$('#defWaveAmt').value=State.deform.waveAmt; $('#defWaveFreq').value=State.deform.waveFreq;
+$('#defRipple').value=State.deform.ripple; $('#defTwist').value=State.deform.twist;
+$('#defShear').value=State.deform.shear; $('#defPersp').value=State.deform.persp;
+$$('#deformSection input').forEach(inp=>inp.addEventListener('input',()=>{
+  State.deform.waveAmt=parseFloat($('#defWaveAmt').value);
+  State.deform.waveFreq=parseFloat($('#defWaveFreq').value);
+  State.deform.ripple=parseFloat($('#defRipple').value);
+  State.deform.twist=parseFloat($('#defTwist').value);
+  State.deform.shear=parseFloat($('#defShear').value);
+  State.deform.persp=parseFloat($('#defPersp').value);
+}));
+$('#deformRandom').addEventListener('click',()=>randomizeDeform());
+
+// Color UI
+populateSelect($('#fillMode'), FILL_MODES);
+populatePalettes($('#palette'));
+$('#fillMode').value = State.color.mode; $('#palette').value = State.color.palette;
+$('#fillOpacity').value = State.color.opacity; $('#lockPalette').checked=State.color.lockPalette;
+$('#fillMode').addEventListener('change',e=>State.color.mode=e.target.value);
+$('#palette').addEventListener('change',e=>State.color.palette=e.target.value);
+$('#fillOpacity').addEventListener('input',e=>State.color.opacity=parseFloat(e.target.value));
+$('#lockPalette').addEventListener('change',e=>State.color.lockPalette=e.target.checked);
+$('#colorRandom').addEventListener('click',()=>randomizeColor());
+$('#applyRamp').addEventListener('click',()=>{
+  const txt=$('#customRamp').value.trim(); if(!txt) return; const parts=txt.split(/[ ,\n\t]+/).map(s=>s.trim()).filter(Boolean);
+  if(parts.length){ State.color.custom=parts; State.color.palette='Custom'; $('#palette').value='Custom'; PALETTES['Custom']=parts; }
+});
+
+// Gradient UI
+$('#gradType').value=State.grad.type; $('#gradAngle').value=State.grad.angle; $('#gradSpread').value=State.grad.spread;
+$('#gradType').addEventListener('change',e=>State.grad.type=e.target.value);
+$('#gradAngle').addEventListener('input',e=>State.grad.angle=parseFloat(e.target.value));
+$('#gradSpread').addEventListener('input',e=>State.grad.spread=parseFloat(e.target.value));
+$('#gradRandom').addEventListener('click',()=>randomizeGrad());
+
+// Noise UI
+$('#noiseScale').value=State.noise.scale; $('#noiseAmt').value=State.noise.amount; $('#noiseDrift').value=State.noise.drift;
+$('#noiseOct').value=State.noise.oct; $('#noiseLac').value=State.noise.lac; $('#noiseGain').value=State.noise.gain;
+$('#infSize').checked=State.noise.infSize; $('#infHue').checked=State.noise.infHue; $('#infLight').checked=State.noise.infLight; $('#posJitter').checked=State.noise.posJitter;
+$$('#noiseSection input').forEach(inp=>inp.addEventListener('input',()=>{
+  State.noise.scale=parseFloat($('#noiseScale').value);
+  State.noise.amount=parseFloat($('#noiseAmt').value);
+  State.noise.drift=parseFloat($('#noiseDrift').value);
+  State.noise.oct=parseInt($('#noiseOct').value);
+  State.noise.lac=parseFloat($('#noiseLac').value);
+  State.noise.gain=parseFloat($('#noiseGain').value);
+  State.noise.infSize=$('#infSize').checked; State.noise.infHue=$('#infHue').checked; State.noise.infLight=$('#infLight').checked; State.noise.posJitter=$('#posJitter').checked;
+}));
+$('#noiseRandom').addEventListener('click',()=>randomizeNoise());
+
+// Animation UI
+populateSelect($('#animMode'), ANIM_MODES);
+$('#animate').checked=State.anim.enabled; $('#animSpeed').value=State.anim.speed; $('#animMode').value=State.anim.mode; $('#animAmp').value=State.anim.amp; $('#animPhase').value=State.anim.phase;
+$('#hueCycle').checked=State.anim.hueCycle; $('#colorGuard').checked=State.anim.colorGuard;
+$$('#animSection input, #animSection select').forEach(el=>el.addEventListener('input',()=>{
+  State.anim.enabled = $('#animate').checked;
+  State.anim.speed = parseFloat($('#animSpeed').value);
+  State.anim.mode = $('#animMode').value;
+  State.anim.amp = parseFloat($('#animAmp').value);
+  State.anim.phase = parseFloat($('#animPhase').value);
+  State.anim.hueCycle = $('#hueCycle').checked;
+  State.anim.colorGuard = $('#colorGuard').checked;
+}));
+$('#animRandom').addEventListener('click',()=>randomizeAnim());
+
+// Export & Master Random
+$('#exportBtn').addEventListener('click',()=>{
+  const a=document.createElement('a'); a.download='generative-art.png'; a.href=canvas.toDataURL('image/png'); a.click();
+});
+$('#masterRandom').addEventListener('click',()=>masterRandom());
+
+// Keyboard shortcuts
+window.addEventListener('keydown',(e)=>{
+  if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA' || e.target.isContentEditable) return;
+  if(e.key==='a' || e.key==='A' || e.key==='0'){ e.preventDefault(); masterRandom(); }
+  else if(e.key==='['){ e.preventDefault(); cycleGrid(-1); }
+  else if(e.key===']'){ e.preventDefault(); cycleGrid(+1); }
+  else if(/[1-7]/.test(e.key)){
+    e.preventDefault(); const k=parseInt(e.key);
+    const map={1:randomizeBG,2:randomizeGrid,3:randomizeDeform,4:randomizeColor,5:randomizeGrad,6:randomizeNoise,7:randomizeAnim};
+    map[k] && map[k]();
+  }
+});
+
+// =============================
+// Randomizers (tasteful ranges)
+// =============================
+function pick(arr){return arr[(rng()*arr.length)|0]}
+function rand(a,b){return lerp(a,b,rng())}
+function randomizeBG(){
+  State.bg.enabled = true;
+  State.bg.mode = pick(BG_MODES);
+  if(!State.color.lockPalette){ State.bg.palette = pick(Object.keys(PALETTES)); $('#bgPalette').value=State.bg.palette; }
+  State.bg.opacity = rand(0.6,1.0);
+  State.bg.intensity = rand(0.3,0.9);
+  State.bg.scale = rand(0.6,1.8);
+  State.bg.animSpeed = rand(0.0,1.0);
+  $('#bgMode').value=State.bg.mode; $('#bgOpacity').value=State.bg.opacity; $('#bgIntensity').value=State.bg.intensity; $('#bgScale').value=State.bg.scale; $('#bgAnimSpeed').value=State.bg.animSpeed;
+}
+function randomizeGrid(){
+  State.grid.mode = pick(GRID_MODES); $('#gridMode').value=State.grid.mode;
+  State.grid.cellSize = Math.round(rand(12,64)); $('#cellSize').value=State.grid.cellSize;
+  State.grid.stroke = rand(0,1.2); $('#gridStroke').value=State.grid.stroke;
+  State.grid.corner = rand(0,0.5); $('#cornerRound').value=State.grid.corner;
+  State.grid.jitter = rand(0,0.35); $('#gridJitter').value=State.grid.jitter;
+  State.grid.rotation = Math.round(rand(-30,30)); $('#gridRotation').value=State.grid.rotation;
+  State.grid.borders = rng()<0.7; $('#drawBorders').checked=State.grid.borders;
+}
+function randomizeDeform(){
+  State.deform.waveAmt = rand(0,40); $('#defWaveAmt').value=State.deform.waveAmt;
+  State.deform.waveFreq = rand(0,0.03); $('#defWaveFreq').value=State.deform.waveFreq;
+  State.deform.ripple = rand(0,80); $('#defRipple').value=State.deform.ripple;
+  State.deform.twist = rand(-0.01,0.01); $('#defTwist').value=State.deform.twist;
+  State.deform.shear = rand(-0.3,0.3); $('#defShear').value=State.deform.shear;
+  State.deform.persp = rand(-0.4,0.4); $('#defPersp').value=State.deform.persp;
+}
+function randomizeColor(){
+  State.color.mode = pick(FILL_MODES); $('#fillMode').value=State.color.mode;
+  if(!State.color.lockPalette){ State.color.palette = pick(Object.keys(PALETTES)); $('#palette').value=State.color.palette; }
+  State.color.opacity = rand(0.75,1); $('#fillOpacity').value=State.color.opacity;
+}
+function randomizeGrad(){
+  State.grad.type = pick(['linear','radial','angular']); $('#gradType').value=State.grad.type;
+  State.grad.angle = Math.round(rand(0,360)); $('#gradAngle').value=State.grad.angle;
+  State.grad.spread = rand(0.6,1.8); $('#gradSpread').value=State.grad.spread;
+}
+function randomizeNoise(){
+  State.noise.scale = rand(0.004,0.02); $('#noiseScale').value=State.noise.scale;
+  State.noise.amount = rand(0.2,0.8); $('#noiseAmt').value=State.noise.amount;
+  State.noise.drift = rand(-0.2,0.2); $('#noiseDrift').value=State.noise.drift;
+  State.noise.oct = (rand(2,6))|0; $('#noiseOct').value=State.noise.oct;
+  State.noise.lac = rand(1.5,2.4); $('#noiseLac').value=State.noise.lac;
+  State.noise.gain = rand(0.4,0.7); $('#noiseGain').value=State.noise.gain;
+  State.noise.infSize = rng()<0.8; $('#infSize').checked=State.noise.infSize;
+  State.noise.infHue = rng()<0.8; $('#infHue').checked=State.noise.infHue;
+  State.noise.infLight = rng()<0.5; $('#infLight').checked=State.noise.infLight;
+  State.noise.posJitter = rng()<0.6; $('#posJitter').checked=State.noise.posJitter;
+}
+function randomizeAnim(){
+  State.anim.enabled = rng()<0.9; $('#animate').checked=State.anim.enabled;
+  State.anim.speed = rand(0.3,1.8); $('#animSpeed').value=State.anim.speed;
+  State.anim.mode = pick(ANIM_MODES); $('#animMode').value=State.anim.mode;
+  State.anim.amp = rand(0.1,1.0); $('#animAmp').value=State.anim.amp;
+  State.anim.phase = rand(0,TAU); $('#animPhase').value=State.anim.phase;
+  State.anim.hueCycle = rng()<0.6; $('#hueCycle').checked=State.anim.hueCycle;
+  State.anim.colorGuard = true; $('#colorGuard').checked=true;
+}
+function masterRandom(){ randomizeBG(); randomizeGrid(); randomizeDeform(); randomizeColor(); randomizeGrad(); randomizeNoise(); randomizeAnim(); State.seed=(Math.random()*1e9)|0; rng=mulberry32(State.seed); }
+
+// =============================
+// Background Rendering
+// =============================
+function drawBackground(t){ if(!State.bg.enabled) return; const {w,h,ctx}=State; const mode=State.bg.mode; const pal = State.bg.linkPalette ? getActiveRamp() : PALETTES[State.bg.palette]; const op = State.bg.opacity; const inten=State.bg.intensity; const sc=State.bg.scale; const sp=State.bg.animSpeed; ctx.save(); ctx.globalAlpha = op; switch(mode){
+  case 'Pure Black': fillRect('#000'); break;
+  case 'Pure White': fillRect('#fff'); break;
+  case 'Solid': fillRect(sampleRamp(pal,0.15)); break;
+  case 'Soft Gradient': {
+    const ang = (State.grad.angle||45)*Math.PI/180; const cx=w/2, cy=h/2; const dx=Math.cos(ang), dy=Math.sin(ang);
+    const x0=cx-dx*w*0.6, y0=cy-dy*h*0.6, x1=cx+dx*w*0.6, y1=cy+dy*h*0.6;
+    const g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0, sampleRamp(pal,0.0)); g.addColorStop(0.5, sampleRamp(pal,0.5)); g.addColorStop(1, sampleRamp(pal,1.0)); ctx.fillStyle=g; ctx.fillRect(0,0,w,h); break; }
+  case 'Angular Gradient': {
+    if(ctx.createConicGradient){ const cg=ctx.createConicGradient(((State.grad.angle||0)*Math.PI/180), w/2,h/2); for(let i=0;i<7;i++){ cg.addColorStop(i/6, sampleRamp(pal, i/6)); } ctx.fillStyle=cg; ctx.fillRect(0,0,w,h); }
+    else { fillRect(sampleRamp(pal,0.5)); }
+    break; }
+  case 'Vignette': {
+    fillRect(sampleRamp(pal,0.4)); const rg=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.2, w/2,h/2, Math.max(w,h)*0.7);
+    rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, `rgba(0,0,0,${0.45*inten})`); ctx.fillStyle=rg; ctx.fillRect(0,0,w,h); break; }
+  case 'Noise Grain': {
+    noiseFill(inten*0.9, sc, t*sp*0.2); break; }
+  case 'Paper Grain': {
+    fillRect(sampleRamp(pal,0.02)); noiseFill(0.25*inten, sc*0.8, t*sp*0.1); ctx.globalAlpha=op*0.6; scanlines(1, 0.06*inten); break; }
+  case 'Geometric Tri': { mosaicTriangles(pal, inten, sc, t*sp); break; }
+  case 'Crosshatch': { fillRect('#101215'); hatch(12/sc, 0.08*inten); hatch(12/sc, 0.08*inten, Math.PI/2); break; }
+  case 'Dots': { dotPattern(pal, sc, inten); break; }
+  case 'Diagonal Weave': { weave(inten, sc); break; }
+  case 'Aurora Flow': { auroraFlow(pal, inten, sc, t*sp); break; }
+  case 'Flow Noise': { flowNoiseBG(pal, inten, sc, t*sp); break; }
+  case 'Scanlines': { fillRect('#0a0b0f'); scanlines(1, 0.13*inten); break; }
+  case 'Orbiting Blobs': { blobs(pal, inten, sc, t*sp); break; }
+  case 'Parallax Stars': { stars(inten, sc, t*sp); break; }
+  case 'CRT Glow': { fillRect('#020204'); scanlines(1, 0.12*inten); vignette(0.35*inten); break; }
+}
+ctx.restore();
+
+  function fillRect(color){ ctx.fillStyle=color; ctx.fillRect(0,0,w,h); }
+  function vignette(a){ const rg=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.25, w/2,h/2, Math.max(w,h)*0.8); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, `rgba(0,0,0,${a})`); ctx.fillStyle=rg; ctx.fillRect(0,0,w,h); }
+  function scanlines(step, alpha){ ctx.save(); ctx.globalAlpha*=alpha; ctx.fillStyle='#000'; for(let y=0;y<h;y+=2*step){ ctx.fillRect(0,y,w,step); } ctx.restore(); }
+  function noiseFill(a,scale,tt){ const img=ctx.createImageData(w,h); for(let y=0;y<h;y+=2){ for(let x=0;x<w;x+=2){ const v=fbm2D(x*scale*0.003 + tt*40, y*scale*0.003 - tt*30, 3, 2.0, 0.5); const c=Math.floor(255*v); const idx=(y*w + x)*4; for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){const id=((y+dy)*w + (x+dx))*4; img.data[id]=c; img.data[id+1]=c; img.data[id+2]=c; img.data[id+3]=Math.floor(255*a);} } } ctx.putImageData(img,0,0); }
+  function hatch(step, alpha, angle=Math.PI/4){ ctx.save(); ctx.translate(w/2,h/2); ctx.rotate(angle); ctx.translate(-w/2,-h/2); ctx.globalAlpha*=alpha; ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1; for(let y=-h; y<h*2; y+=step){ ctx.beginPath(); ctx.moveTo(-w,y); ctx.lineTo(w*2,y); ctx.stroke(); } ctx.restore(); }
+  function dotPattern(pal, sc, inten){ ctx.save(); const step=Math.max(6, 16/sc); const colA=sampleRamp(pal,0.2), colB=sampleRamp(pal,0.8); ctx.fillStyle=colA; ctx.fillRect(0,0,w,h); ctx.fillStyle=colB; const r=step*0.25*inten; for(let y=0;y<h;y+=step){ for(let x=0;x<w;x+=step){ ctx.beginPath(); ctx.arc(x + (y/step%2 ? step*0.5:0), y, r, 0, TAU); ctx.fill(); } } ctx.restore(); }
+  function weave(inten, sc){ ctx.save(); ctx.fillStyle='#0d0f14'; ctx.fillRect(0,0,w,h); ctx.globalAlpha *= 0.6*inten; hatch(10/sc, 0.5*inten, Math.PI/4); hatch(10/sc, 0.5*inten, -Math.PI/4); ctx.restore(); }
+  function mosaicTriangles(pal, inten, sc, tt){ ctx.save(); const step=Math.max(14, 56/sc); for(let y=0;y<h+step;y+=step){ for(let x=0;x<w+step;x+=step){ const t0=rng(); const c=sampleRamp(pal, (valueNoise2D((x+tt*30)*0.02,(y-tt*25)*0.02)) ); ctx.fillStyle=c; ctx.beginPath(); if(((x+y)/step|0)%2===0){ ctx.moveTo(x,y); ctx.lineTo(x+step,y); ctx.lineTo(x,y+step); } else { ctx.moveTo(x+step,y); ctx.lineTo(x+step,y+step); ctx.lineTo(x,y+step); }
+      ctx.closePath(); ctx.globalAlpha=0.9*inten; ctx.fill(); }
+    }
+    ctx.restore(); }
+  function auroraFlow(pal, inten, sc, tt){ ctx.save(); ctx.fillStyle='#06070b'; ctx.fillRect(0,0,w,h); for(let i=0;i<7;i++){ const off=i*0.15; const col=sampleRamp(pal, i/6); ctx.globalAlpha=0.25*inten; ctx.fillStyle=col; const amp=0.12*h*inten; const freq=0.002*sc*(1+i*0.2); ctx.beginPath(); ctx.moveTo(0, h*0.2 + amp*Math.sin(tt*2 + off)); for(let x=0;x<w;x+=8){ const y = h*(0.2+0.1*i) + amp*Math.sin(x*freq + tt*2 + off*4); ctx.lineTo(x,y); } ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); }
+  function flowNoiseBG(pal, inten, sc, tt){ ctx.save(); const cols=5; for(let i=0;i<cols;i++){ const t=i/(cols-1); const col=sampleRamp(pal,t); ctx.globalAlpha=0.2*inten; ctx.fillStyle=col; const y0=h*(0.2+0.6*t); const amp=60*sc; ctx.beginPath(); ctx.moveTo(0,y0); for(let x=0;x<=w;x+=8){ const y=y0 + amp*(valueNoise2D(x*0.01+tt*0.5, t*3+tt*0.3)-0.5); ctx.lineTo(x,y); } ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); }
+  function blobs(pal, inten, sc, tt){ ctx.save(); ctx.globalAlpha=0.7*inten; for(let i=0;i<8;i++){ const ang=i*(TAU/8)+tt*(0.3+0.1*i); const r= Math.min(w,h)* (0.15 + 0.05*i*sc); const x= w/2 + Math.cos(ang)*r; const y= h/2 + Math.sin(ang)*r; ctx.fillStyle=sampleRamp(pal, i/7); ctx.beginPath(); ctx.arc(x,y, 60+20*Math.sin(tt+i), 0, TAU); ctx.fill(); }
+    ctx.restore(); }
+  function stars(inten, sc, tt){ ctx.save(); ctx.fillStyle='#020409'; ctx.fillRect(0,0,w,h); ctx.globalAlpha=0.9; const count = Math.floor(200*sc*inten+60); ctx.fillStyle='#fff'; for(let i=0;i<count;i++){ const sx = ((hash2D(i,1)*w + tt*40*(i%3+1))%w); const sy = (hash2D(i,2)*h); const rad = 0.5 + 1.8*(hash2D(i,3)); ctx.globalAlpha = 0.5 + 0.5*hash2D(i,4); ctx.beginPath(); ctx.arc(sx,sy,rad,0,TAU); ctx.fill(); } ctx.restore(); }
+}
+
+// =============================
+// Grid + Cells
+// =============================
+function getActiveRamp(){ return State.color.custom || PALETTES[State.color.palette] || PALETTES['Neon Ice']; }
+
+function forEachCell(cb){
+  const {w,h}=State; const s=clamp(State.grid.cellSize,6,Math.max(6, Math.min(w,h)/3));
+  const mode=State.grid.mode;
+  const jitter=State.grid.jitter*s*0.8; const rot = (State.grid.rotation||0)*Math.PI/180;
+  const cosr=Math.cos(rot), sinr=Math.sin(rot);
+  const cols = Math.ceil(w/s)+2, rows=Math.ceil(h/s)+2; const cx=w/2, cy=h/2;
+  // iterate grid positions; mode-specific placement
+  for(let gy=-1; gy<rows; gy++){
+    for(let gx=-1; gx<cols; gx++){
+      let x = gx*s; let y = gy*s;
+      // lattice variants
+      if(mode==='Hex' || mode==='Honeycomb Rings' || mode==='Hex-Pixel'){
+        x = gx*s + (gy%2? s*0.5:0); y = gy*s*0.866; // hex vertical spacing
+      }
+      if(mode==='Tri'){
+        x = gx*s + (gy%2? s*0.5:0); y = gy*s*0.866; // same lattice, alternate triangles
+      }
+      if(mode==='Diamond' || mode==='Isometric'){
+        // rotate 45° grid for diamonds
+        const rx = gx*s - w*0.25, ry = gy*s - h*0.25; const dx = (rx-ry)/Math.SQRT2, dy = (rx+ry)/Math.SQRT2; x=dx+w*0.25; y=dy+h*0.25; }
+      if(mode==='Polar' || mode==='Radial' || mode==='Spiral' || mode==='Fractal Spiral' || mode==='Orbit' || mode==='Ripple-Propagated'){
+        // place rings around center
+        const rstep=s*0.9; const ring=Math.max(1, gy); const ang = gx*(TAU/Math.max(6,Math.round(6+ring*2)));
+        const r = ring*rstep; x = cx + Math.cos(ang)*r; y = cy + Math.sin(ang)*r;
+      }
+      if(mode==='Perspective'){ const z = 1 + (y/h - 0.5)*1.2; x = (x-cx)/z + cx; }
+      if(mode==='Cylindrical'){ const nx=(x-cx)/w*TAU; x = cx + Math.sin(nx)*w*0.5; }
+      if(mode==='Spherical' || mode==='Fish-Eye'){ const dx=(x-cx)/w*2, dy=(y-cy)/h*2; const r=Math.hypot(dx,dy)+1e-6; const k=(mode==='Spherical')? Math.sin(r)/r : Math.atan(r)/r; x=cx+dx*w*0.5*k; y=cy+dy*h*0.5*k; }
+      if(State.noise.posJitter){ const n = fbm2D(x*State.noise.scale*2 + State.time*0.5, y*State.noise.scale*2 - State.time*0.35, State.noise.oct, State.noise.lac, State.noise.gain); x += (n-0.5)*jitter*2; y += (0.5-n)*jitter*2; }
+      // base jitter
+      x += (rng()-0.5)*jitter; y += (rng()-0.5)*jitter;
+      // rotate global grid
+      const rx = x-cx, ry = y-cy; x = cx + rx*cosr - ry*sinr; y = cy + rx*sinr + ry*cosr;
+
+      // deform
+      const dx = x-cx, dy = y-cy; const rad=Math.hypot(dx,dy)+1e-6; const ang=Math.atan2(dy,dx);
+      const wave = State.deform.waveAmt*Math.sin(dx*State.deform.waveFreq + State.time*0.8);
+      const ripple = State.deform.ripple*Math.sin(rad*0.02 - State.time*0.9);
+      const twistAng = ang + State.deform.twist*rad;
+      let sx = dx, sy = dy + wave + ripple;
+      // shear
+      sx = sx + State.deform.shear*sy;
+      // perspective
+      const pz = 1 + State.deform.persp*(sy/h);
+      sx/=pz; sy/=pz;
+      // twist rotation
+      const cosT=Math.cos(twistAng-ang), sinT=Math.sin(twistAng-ang);
+      const tx = sx*cosT - sy*sinT; const ty = sx*sinT + sy*cosT;
+      x = cx + tx; y = cy + ty;
+
+      cb(x,y,s, gx,gy);
+    }
+  }
+}
+
+function drawCell(x,y,s, gx,gy){
+  const mode = State.grid.mode;
+  const ctx = State.ctx;
+  const nval = fbm2D(x*State.noise.scale + State.time*State.noise.drift, y*State.noise.scale - State.time*State.noise.drift, State.noise.oct, State.noise.lac, State.noise.gain);
+  let size = s * (State.noise.infSize ? lerp(0.6,1.4, nval*State.noise.amount + (1-State.noise.amount)) : 1.0);
+  size = clamp(size, 4, s*1.8);
+  // choose shape per mode group (fast approx)
+  const round = State.grid.corner * (s*0.5);
+  const drawBorder = State.grid.borders && State.grid.stroke>0.01;
+  const half = size*0.5;
+
+  // compute fill style
+  const fill = computeFill(x,y,gx,gy,nval);
+  ctx.globalAlpha = State.color.opacity;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = State.grid.stroke;
+
+  // basic shape drawers
+  function rect(){ if(ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x-half, y-half, size, size, round); ctx.fill(); if(drawBorder){ctx.stroke();} }
+    else { ctx.beginPath(); ctx.moveTo(x-half+round, y-half); ctx.arcTo(x+half,y-half,x+half,y+half,round); ctx.arcTo(x+half,y+half,x-half,y+half,round); ctx.arcTo(x-half,y+half,x-half,y-half,round); ctx.arcTo(x-half,y-half,x+half,y-half,round); ctx.closePath(); ctx.fill(); if(drawBorder){ctx.stroke();} } }
+  function circle(){ ctx.beginPath(); ctx.arc(x,y, half, 0, TAU); ctx.fill(); if(drawBorder){ctx.stroke();} }
+  function diamond(){ ctx.beginPath(); ctx.moveTo(x, y-half); ctx.lineTo(x+half, y); ctx.lineTo(x, y+half); ctx.lineTo(x-half, y); ctx.closePath(); ctx.fill(); if(drawBorder){ctx.stroke();} }
+  function tri(up=true){ ctx.beginPath(); if(up){ ctx.moveTo(x, y-half); ctx.lineTo(x+half, y+half); ctx.lineTo(x-half, y+half); } else { ctx.moveTo(x, y+half); ctx.lineTo(x+half, y-half); ctx.lineTo(x-half, y-half); } ctx.closePath(); ctx.fill(); if(drawBorder){ctx.stroke();} }
+  function hex(){ const r=half; ctx.beginPath(); for(let i=0;i<6;i++){ const a=TAU*i/6; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.closePath(); ctx.fill(); if(drawBorder){ctx.stroke();} }
+
+  switch(mode){
+    case 'Square': rect(); break;
+    case 'Rect': { const w=size*1.4, h=size*0.7; ctx.beginPath(); ctx.roundRect?.(x-w/2,y-h/2,w,h, round*0.6); ctx.fill(); if(drawBorder){ctx.stroke();} break; }
+    case 'Tri': tri(((gx+gy)&1)===0); break;
+    case 'Hex': hex(); break;
+    case 'Diamond': diamond(); break;
+    case 'Isometric': diamond(); break;
+    case 'Dot Matrix': circle(); break;
+    case 'Checkerboard': { if(((gx+gy)&1)===0) rect(); break; }
+    case 'Lattice': { // draw small circle on grid intersections
+      const r=half*0.35; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); break; }
+    case 'Organic': { const k = 0.6 + 0.8*nval; const r=half*k; ctx.beginPath(); ctx.ellipse(x,y,r, r*(0.6+0.6*Math.sin(nval*TAU)), 0, 0, TAU); ctx.fill(); break; }
+    case 'Adaptive': { const k = nval; const r=lerp(half*0.3, half*1.4, k); ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); break; }
+    case 'Rhombille': { diamond(); break; }
+    case 'Octagon-Square': { // approx as alternating circle/square
+      if(((gx+gy)&1)===0) rect(); else circle(); break; }
+    case 'Cairo Pentagonal (approx)': { // draw diamond-ish pentagon
+      const r=half; ctx.beginPath(); for(let i=0;i<5;i++){ const a=TAU*i/5 + 0.5; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.closePath(); ctx.fill(); break; }
+    case 'Hex-Pixel': hex(); break;
+    case 'Randomized': { (rng()<0.5?rect:circle)(); break; }
+    case 'Fractal': { // draw small cross
+      const r=half; ctx.beginPath(); ctx.rect(x-r*0.5,y-r*0.5,r,r); ctx.rect(x-r*0.2,y-r*0.8,r*0.4,r*0.4); ctx.rect(x-r*0.8,y-r*0.2,r*0.4,r*0.4); ctx.rect(x+r*0.4,y-r*0.2,r*0.4,r*0.4); ctx.rect(x-r*0.2,y+r*0.4,r*0.4,r*0.4); ctx.fill(); break; }
+    case 'Penrose (approx)': case 'Quasi-Crystal (approx)': { // star-like diamond
+      const r=half; ctx.beginPath(); for(let i=0;i<10;i++){ const a=TAU*i/10; const rr = (i%2? r*0.45:r); const px=x+Math.cos(a)*rr, py=y+Math.sin(a)*rr; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.closePath(); ctx.fill(); break; }
+    case 'Tiling': rect(); break;
+    case 'Perspective': rect(); break;
+    case 'Cylindrical': circle(); break;
+    case 'Spherical': circle(); break;
+    case 'Polar': circle(); break;
+    case 'Radial': diamond(); break;
+    case 'Spiral': tri(true); break;
+    case 'Fractal Spiral': tri(false); break;
+    case 'Wave-Deformed': circle(); break;
+    case 'Wave-Bend': rect(); break;
+    case 'Noise-Warped': diamond(); break;
+    case 'Ripple': circle(); break;
+    case 'Twist': rect(); break;
+    case 'Sheared': rect(); break;
+    case 'Cross-Hatch': rect(); break;
+    case 'Dot-Lattice': circle(); break;
+    case 'Checker-Warp': rect(); break;
+    case 'Circle-Packing (approx)': circle(); break;
+    case 'Sliding': rect(); break;
+    case 'Shattered': tri(((gx^gy)&1)===0); break;
+    case 'Orbit': circle(); break;
+    case 'Ripple-Propagated': circle(); break;
+    case 'Jitter': rect(); break;
+    case 'Recursive Subdivision': rect(); break;
+    case 'Hilbert Curve (approx)': rect(); break;
+    case 'Adaptive Heatmap': { const r=lerp(half*0.2, half*1.5, nval); ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); break; }
+    case 'Delaunay (approx)': case 'Voronoi (approx)': default: rect(); break;
+  }
+}
+
+// =============================
+// Fill computation (per cell)
+// =============================
+function computeFill(x,y,gx,gy,nval){
+  const ramp = getActiveRamp();
+  const mode = State.color.mode;
+  const t = (x/State.w + y/State.h)*0.5;
+  const hueCycle = State.anim.hueCycle ? (0.1*Math.sin(State.time*0.3) + 0.1*Math.cos(State.time*0.17)) : 0;
+  const guard = State.anim.colorGuard;
+
+  function applyHueShift(hex, shift){ const {r,g,b}=hexToRgb(hex); const hsl=rgbToHsl(r,g,b); let h=hsl.h+shift; while(h<0) h+=1; while(h>1) h-=1; const rgb=hslToRgb(h, hsl.s, guard? clamp(hsl.l,0.15,0.85):hsl.l); return rgbToHex(rgb.r,rgb.g,rgb.b); }
+
+  switch(mode){
+    case 'Solid': return applyHueShift(sampleRamp(ramp,0.5), hueCycle);
+    case 'Alternating': return applyHueShift(sampleRamp(ramp, ((gx+gy)&1)?0.2:0.8), hueCycle);
+    case 'Gradient Linear':
+    case 'Gradient Radial':
+    case 'Gradient Angular': {
+      // Use scene-wide gradient; sample by angle/position
+      const kind = mode.split(' ')[1].toLowerCase();
+      let u = 0.0;
+      if(kind==='linear'){ const ang=(State.grad.angle||0)*Math.PI/180; const nx = Math.cos(ang)*(x-State.w/2) + Math.sin(ang)*(y-State.h/2); const d = 0.5*Math.max(State.w,State.h); u = clamp(0.5 + (nx/(d*State.grad.spread)), 0,1); }
+      else if(kind==='radial'){ const d=Math.hypot(x-State.w/2,y-State.h/2); u = clamp(d/(0.5*Math.max(State.w,State.h)*State.grad.spread),0,1); }
+      else { const a = (Math.atan2(y-State.h/2,x-State.w/2)+Math.PI)/TAU; u = (a*State.grad.spread)%1; }
+      return applyHueShift(sampleRamp(ramp,u), hueCycle);
+    }
+    case 'Noise Hue': {
+      const u = (nval*State.noise.amount) % 1; return applyHueShift(sampleRamp(ramp, u), hueCycle);
+    }
+    case 'Noise Brightness': {
+      const base = sampleRamp(ramp, t*0.8 + 0.1); const {r,g,b}=hexToRgb(base); const hsl=rgbToHsl(r,g,b); const l = clamp(hsl.l*(0.6+0.8*nval*State.noise.amount), 0.08, 0.95); const rgb=hslToRgb(hsl.h + hueCycle, hsl.s, guard? clamp(l,0.15,0.85):l); return rgbToHex(rgb.r,rgb.g,rgb.b);
+    }
+    case 'Stripes': { const s = State.grid.cellSize; const u = ((x/s)|0)%2; return applyHueShift(sampleRamp(ramp, u?0.2:0.8), hueCycle); }
+    case 'Halftone': { const u = clamp(nval,0,1); return applyHueShift(sampleRamp(ramp,u), hueCycle); }
+    case 'Rings': { const d=Math.hypot(x-State.w/2,y-State.h/2); const u=((d/State.grid.cellSize)/State.grad.spread)%1; return applyHueShift(sampleRamp(ramp,u), hueCycle); }
+    default: return applyHueShift(sampleRamp(ramp,t), hueCycle);
+  }
+}
+
+// =============================
+// Animation Transforms
+// =============================
+function applyAnimation(){
+  const {ctx,w,h} = State; const A=State.anim;
+  if(!A.enabled || A.mode==='None') return;
+  const t = State.time*A.speed + A.phase;
+  ctx.translate(w/2,h/2);
+  switch(A.mode){
+    case 'Pulse': { const s = 1 + A.amp*0.05*Math.sin(t*2.2); ctx.scale(s,s); break; }
+    case 'Wave Sweep': { const off = A.amp*20*Math.sin(t*1.2); ctx.translate(off, 0); break; }
+    case 'Orbit': { const r = A.amp*40; ctx.translate(Math.cos(t)*r, Math.sin(t)*r); break; }
+    case 'Rotate Scene': { const a = A.amp*0.2*Math.sin(t*1.0); ctx.rotate(a); break; }
+    case 'Drift': { ctx.translate(A.amp*30*Math.cos(t*0.7), A.amp*30*Math.sin(t*0.9)); break; }
+    case 'Shake': { ctx.translate(A.amp*5*(rng()-0.5), A.amp*5*(rng()-0.5)); break; }
+    case 'Zoom': { const s = 1 + A.amp*0.4*Math.sin(t*0.9); ctx.scale(s,s); break; }
+    case 'Cell Ripple': { /* handled per-cell via ripple deform already */ break; }
+  }
+  ctx.translate(-w/2,-h/2);
+}
+
+// =============================
+// Render Loop
+// =============================
+let last=performance.now();
+function frame(now){
+  const dt = (now-last)/1000; last=now;
+  State.time += dt;
+  // Clear
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,State.w,State.h);
+  // Background
+  drawBackground(State.time);
+  // Animation transform
+  ctx.save();
+  applyAnimation();
+  // Grid cells
+  forEachCell((x,y,s,gx,gy)=>drawCell(x,y,s,gx,gy));
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// Initial gentle randomize to avoid blank states
+setTimeout(()=>masterRandom(), 50);
+</script>
+</body>
+</html>
