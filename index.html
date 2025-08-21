@@ -1,47 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generative Art Interfaces</title>
+  <meta charset="UTF-8" />
+  <title>My Interfaces (Auto-indexed)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #111;
-      color: #eee;
-      padding: 2rem;
-      line-height: 1.6;
-    }
-    h1 {
-      color: #ffcc00;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      margin: 0.5rem 0;
-    }
-    a {
-      color: #66ccff;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    a:hover {
-      text-decoration: underline;
-      color: #ff6699;
-    }
+    :root { --bg:#0f1115; --panel:#151821; --fg:#e8eefb; --muted:#9aa6b2; --acc:#6ea8fe; --chip:#222738; }
+    *{box-sizing:border-box}
+    body{margin:0; background:linear-gradient(180deg,#0b0d12,#0f1115 35%,#0b0d12); color:var(--fg); font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial}
+    header{padding:28px 22px; border-bottom:1px solid #202536; background:rgba(21,24,33,.7); position:sticky; top:0; backdrop-filter:saturate(1.1) blur(10px)}
+    h1{margin:0; font-size:22px; letter-spacing:.3px}
+    #cfg{margin-top:6px; color:var(--muted); font-size:13px}
+    main{max-width:980px; margin:24px auto; padding:0 20px}
+    .search{display:flex; gap:10px; margin:8px 0 18px}
+    .search input{flex:1; padding:10px 12px; border-radius:10px; border:1px solid #262b3f; background:#0e111a; color:var(--fg)}
+    .search button{padding:10px 14px; border:1px solid #2a3145; background:var(--chip); color:var(--fg); border-radius:10px; cursor:pointer}
+    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px}
+    .card{background:var(--panel); border:1px solid #202536; border-radius:14px; padding:14px}
+    .card a{display:block; color:var(--acc); text-decoration:none; font-weight:600; margin-bottom:6px; word-break:break-all}
+    .meta{color:var(--muted); font-size:12px}
+    .folder{margin:28px 0 8px; color:#c6d4ff; font-weight:700; font-size:14px; letter-spacing:.4px}
+    .pill{display:inline-block; background:var(--chip); border:1px solid #2a3145; color:var(--muted); border-radius:999px; padding:2px 8px; font-size:12px; margin-left:8px}
+    .status{margin:12px 0; color:var(--muted); font-size:14px}
+    footer{max-width:980px; margin:32px auto 60px; padding:0 20px; color:var(--muted); font-size:12px}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-  <h1>🎨 Generative Art Interfaces</h1>
-  <p>Select a piece below to open it:</p>
-  <ul>
-    <li><a href="piece1.html">Piece 1 – Grid Snakes</a></li>
-    <li><a href="piece2.html">Piece 2 – Theta Function Flow</a></li>
-    <li><a href="piece3.html">Piece 3 – Glitch Patterns</a></li>
-    <li><a href="piece4.html">Piece 4 – Particle Playground</a></li>
-    <!-- Add more as needed -->
-  </ul>
+  <header>
+    <h1>My Interfaces <span class="pill" id="countPill">0 files</span></h1>
+    <div id="cfg"></div>
+  </header>
+
+  <main>
+    <div class="search">
+      <input id="filter" placeholder="Filter by name… (e.g. juno, art, ob-8)" />
+      <button id="clearBtn" title="Clear filter">Clear</button>
+    </div>
+    <div id="status" class="status">Loading list from GitHub…</div>
+    <div id="container"></div>
+  </main>
+
+  <footer>
+    Tip: This page uses the public GitHub API. If you ever hit rate limits, just refresh in a minute or push again.
+  </footer>
+
+  <script>
+    // =========================
+    // CONFIG — EDIT THESE 4 LINES
+    // =========================
+    const GH_OWNER   = "ravearcade";     // e.g. "your-username"
+    const GH_REPO    = "generativeart";         // e.g. "your-repo"
+    const GH_BRANCH  = "main";           // usually "main" or "gh-pages"
+    const BASE_PATH  = "";               // subfolder within repo to scan ("" for root, e.g. "demos")
+    // Optional: If your Pages URL differs (org/user site), override below:
+    const PAGES_BASE = `https://${GH_OWNER}.github.io/${GH_REPO}/`;
+    // =========================
+
+    // Behavior tweaks
+    const EXCLUDE_NAMES = new Set(["index.html"]); // don’t list this index file
+    const MAX_DEPTH = 6; // recursion depth into folders
+
+    // Cache to avoid extra API calls on reload
+    const CACHE_KEY = "gh-file-cache:v1:" + [GH_OWNER, GH_REPO, GH_BRANCH, BASE_PATH].join("/");
+    const CACHE_TTL_MS = 60_000; // 1 minute
+
+    // UI refs
+    const statusEl = document.getElementById("status");
+    const containerEl = document.getElementById("container");
+    const filterEl = document.getElementById("filter");
+    const clearBtn = document.getElementById("clearBtn");
+    const countPill = document.getElementById("countPill");
+    const cfgEl = document.getElementById("cfg");
+
+    cfgEl.textContent = `${GH_OWNER}/${GH_REPO}@${GH_BRANCH}${BASE_PATH ? " /" + BASE_PATH : ""}`;
+
+    clearBtn.onclick = () => { filterEl.value = ""; render(); };
+    filterEl.addEventListener("input", () => render());
+
+    const api = (path="") =>
+      `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(GH_BRANCH)}`;
+
+    async function listDir(path="", depth=0, results=[]) {
+      if (depth > MAX_DEPTH) return results;
+      const res = await fetch(api(path));
+      if (!res.ok) throw new Error(`GitHub API ${res.status} at ${path}`);
+      const items = await res.json();
+
+      for (const it of items) {
+        if (it.type === "dir") {
+          // Ignore hidden/system dirs
+          if (it.name.startsWith(".") || it.name === "_site" || it.name === "node_modules") continue;
+          await listDir(it.path, depth + 1, results);
+        } else if (it.type === "file" && it.name.toLowerCase().endsWith(".html")) {
+          if (EXCLUDE_NAMES.has(it.name.toLowerCase())) continue;
+          results.push({
+            name: it.name,
+            path: it.path,
+            dir: path,
+            url: toPagesUrl(it.path)
+          });
+        }
+      }
+      return results;
+    }
+
+    function toPagesUrl(repoPath) {
+      // Turn "folder/foo.html" into your GitHub Pages URL
+      return PAGES_BASE + repoPath.replace(/^\/*/, "");
+    }
+
+    async function loadFiles() {
+      // Try cache first
+      const now = Date.now();
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
+        if (cached && (now - cached.time) < CACHE_TTL_MS) {
+          return cached.data;
+        }
+      } catch {}
+
+      const data = await listDir(BASE_PATH);
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ time: now, data }));
+      return data;
+    }
+
+    let FILES = [];
+
+    function render() {
+      const q = filterEl.value.trim().toLowerCase();
+      const filtered = q
+        ? FILES.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+        : FILES.slice();
+
+      // Group by folder
+      const byDir = new Map();
+      for (const f of filtered) {
+        const key = f.dir || "/";
+        if (!byDir.has(key)) byDir.set(key, []);
+        byDir.get(key).push(f);
+      }
+
+      // Build DOM
+      containerEl.innerHTML = "";
+      let total = 0;
+      for (const [dir, arr] of [...byDir.entries()].sort((a,b)=>a[0].localeCompare(b[0]))) {
+        arr.sort((a,b)=>a.name.localeCompare(b.name));
+        total += arr.length;
+
+        const folderLabel = document.createElement("div");
+        folderLabel.className = "folder";
+        folderLabel.textContent = dir === "/" || dir === "" ? "(root)" : dir;
+        containerEl.appendChild(folderLabel);
+
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        containerEl.appendChild(grid);
+
+        for (const f of arr) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const a = document.createElement("a");
+          a.href = f.url;
+          a.textContent = f.name.replace(/\.html$/i, "");
+          a.target = "_blank";
+          a.rel = "noopener";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = f.path;
+          card.appendChild(a);
+          card.appendChild(meta);
+          grid.appendChild(card);
+        }
+      }
+
+      countPill.textContent = `${total} file${total===1?"":"s"}`;
+      statusEl.classList.toggle("hidden", true);
+      if (total === 0) {
+        statusEl.textContent = "No HTML files found. Add some to your repo and refresh.";
+        statusEl.classList.remove("hidden");
+      }
+    }
+
+    (async () => {
+      try {
+        FILES = await loadFiles();
+        render();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Couldn’t load from GitHub API. If your repo is private, make it public or use a GitHub Action to prebuild the index.";
+      }
+    })();
+  </script>
 </body>
 </html>
